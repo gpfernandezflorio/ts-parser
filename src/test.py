@@ -2,9 +2,12 @@ import os
 from utils import leerArchivo_
 from parser import tokenizar, parsear
 from parser import token as t
-from parser import AST_comando as comando
 from parser import AST_espacios as espacios
 from parser import AST_invocacion as invocacion
+from parser import AST_decl_variable as variable
+from parser import AST_asignacion as asignacion
+from parser import AST_expresion as expresion
+from parser import AST_decl_funcion as funcion
 
 def main():
   for test in casos_de_test:
@@ -30,7 +33,7 @@ casos_de_test = [
     t('ABRE_PAREN','(',1,4),
     t('CIERRA_PAREN',')',1,5),
     t('PUNTO_Y_COMA',';',1,6)
-  ], [comando(invocacion('hola'), ';')
+  ], [invocacion('hola')
   ]),
   Test("Dos comandos",
     "hola();\nchau();",[
@@ -38,54 +41,95 @@ casos_de_test = [
     t('ABRE_PAREN','(',1,4),
     t('CIERRA_PAREN',')',1,5),
     t('PUNTO_Y_COMA',';',1,6),
-    t('SALTO_DE_LINEA','\n',1,7),
+    t('SKIP','\n',1,7),
     t('IDENTIFICADOR','chau',2,8),
     t('ABRE_PAREN','(',2,12),
     t('CIERRA_PAREN',')',2,13),
     t('PUNTO_Y_COMA',';',2,14)
-  ], [comando(invocacion('hola'), ';'),
-      espacios('\n'),
-      comando(invocacion('chau'), ';')
+  ], [invocacion('hola'),
+      invocacion('chau')
   ]),
   Test("Blancos",
     " \t\n",[
-    t('ESPACIO',' ',1,0),
-    t('TAB','\t',1,1),
-    t('SALTO_DE_LINEA','\n',1,2)
+    t('SKIP',' \t\n',1,0)
   ], [espacios(' \t\n')
   ]),
   Test("Comandos con blancos",
     "\t \t hola();\t \n\t \tchau();  \n\n  ",[
-    t('TAB','\t',1,0),
-    t('ESPACIO',' ',1,1),
-    t('TAB','\t',1,2),
-    t('ESPACIO',' ',1,3),
+    t('SKIP','\t \t ',1,0),
     t('IDENTIFICADOR','hola',1,4),
     t('ABRE_PAREN','(',1,8),
     t('CIERRA_PAREN',')',1,9),
     t('PUNTO_Y_COMA',';',1,10),
-    t('TAB','\t',1,11),
-    t('ESPACIO',' ',1,12),
-    t('SALTO_DE_LINEA','\n',1,13),
-    t('TAB','\t',2,14),
-    t('ESPACIO',' ',2,15),
-    t('TAB','\t',2,16),
+    t('SKIP','\t \n\t \t',1,11),
     t('IDENTIFICADOR','chau',2,17),
     t('ABRE_PAREN','(',2,21),
     t('CIERRA_PAREN',')',2,22),
     t('PUNTO_Y_COMA',';',2,23),
-    t('ESPACIO',' ',2,24),
-    t('ESPACIO',' ',2,25),
-    t('SALTO_DE_LINEA','\n',2,26),
-    t('SALTO_DE_LINEA','\n',3,27),
-    t('ESPACIO',' ',4,28),
-    t('ESPACIO',' ',4,29)
+    t('SKIP','  \n\n  ',2,24),
   ], [espacios('\t \t '),
-      comando(invocacion('hola'), ';'),
-      espacios('\t \n\t \t'),
-      comando(invocacion('chau'), ';'),
-      espacios('  \n\n  ')
-  ])
+      invocacion('hola'),
+      invocacion('chau'),
+  ]),
+  Test("Una variable",
+    "\tlet x\t=  5",[
+    t('SKIP','\t',1,0),
+    t('DECL_VAR','let',1,1),
+    t('SKIP',' ',1,4),
+    t('IDENTIFICADOR','x',1,5),
+    t('SKIP','\t',1,6),
+    t('ASIGNACION','=',1,7),
+    t('SKIP','  ',1,8),
+    t('NUMERO','5',1,10)
+  ], [espacios('\t'),
+      variable('x',expresion('5'))
+  ]),
+  Test("Declaración y asignación de variable con strings",
+    "const\tx;x =\n'2'x=\"true\"",[
+    t('DECL_VAR','const',1,0),
+    t('SKIP','\t',1,5),
+    t('IDENTIFICADOR','x',1,6),
+    t('PUNTO_Y_COMA',';',1,7),
+    t('IDENTIFICADOR','x',1,8),
+    t('SKIP',' ',1,9),
+    t('ASIGNACION','=',1,10),
+    t('SKIP','\n',1,11),
+    t('STRING',"'2'",2,12),
+    t('IDENTIFICADOR','x',2,15),
+    t('ASIGNACION','=',2,16),
+    t('STRING','"true"',2,17)
+  ], [variable('x'),
+      asignacion('x',expresion("'2'")),
+      asignacion('x',expresion('"true"'))
+  ]),
+  Test("Declaración de función",
+    "function HOLA() {x=2.5;let y = .66\t;}",[
+    t('DECL_FUNC','function',1,0),
+    t('SKIP',' ',1,8),
+    t('IDENTIFICADOR','HOLA',1,9),
+    t('ABRE_PAREN','(',1,13),
+    t('CIERRA_PAREN',')',1,14),
+    t('SKIP',' ',1,15),
+    t('ABRE_LLAVE','{',1,16),
+    t('IDENTIFICADOR','x',1,17),
+    t('ASIGNACION','=',1,18),
+    t('NUMERO','2.5',1,19),
+    t('PUNTO_Y_COMA',';',1,22),
+    t('DECL_VAR','let',1,23),
+    t('SKIP',' ',1,26),
+    t('IDENTIFICADOR','y',1,27),
+    t('SKIP',' ',1,28),
+    t('ASIGNACION','=',1,29),
+    t('SKIP',' ',1,30),
+    t('NUMERO','.66',1,31),
+    t('SKIP','\t',1,34),
+    t('PUNTO_Y_COMA',';',1,35),
+    t('CIERRA_LLAVE','}',1,36),
+  ], [funcion('HOLA',[
+        asignacion('x',expresion('2.5')),
+        variable('y',expresion('.66'))
+    ])
+  ]),
 ]
 
 def evaluar(test):
@@ -106,13 +150,21 @@ def evaluar(test):
     print("Error en test: "+test.desc)
     print("Faltó generar " + str(len(esperado)-i) + " tokens")
     return True
+  restore = "".join(list(map(lambda x : x.value, obtenido)))
+  if restore != test.input:
+    print("Error en test: "+test.desc)
+    print("La entrada original era:")
+    print(clean_str(test.input))
+    print("Pero el resultado recuperado de los tokens es:")
+    print(clean_str(restore))
+    return True
   esperado = test.ast
   obtenido = parsear(test.input)
   i = 0
   while i < len(esperado) and i < len(obtenido):
     if str(obtenido[i]) != str(esperado[i]):
       print("Error en test: "+test.desc)
-      print("Se esperaba "+str(esperado[i])+" pero se obtuvo "+str(obtenido[i]))
+      print("Se esperaba "+clean_str(esperado[i])+" pero se obtuvo "+clean_str(obtenido[i]))
       return True
     i += 1
   if len(obtenido) > i:
@@ -123,6 +175,18 @@ def evaluar(test):
     print("Error en test: "+test.desc)
     print("Faltó generar " + str(len(esperado)-i) + " términos")
     return True
+  restore = "".join(list(map(lambda x : x.restore(), obtenido)))
+  if restore != test.input:
+    print("Error en test: "+test.desc)
+    print("La entrada original era:")
+    print(clean_str(test.input))
+    print("Pero el resultado recuperado del ast es:")
+    print(clean_str(restore))
+    return True
+  return False
+
+def clean_str(s):
+  return str(s).replace('\n','\\n').replace('\t','\\t')
 
 if __name__ == '__main__':
   main()
