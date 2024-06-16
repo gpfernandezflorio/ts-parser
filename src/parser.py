@@ -87,6 +87,7 @@ def p_error(p):
                                                                 | AST_asignacion
                                                                 | AST_decl_variable
                                                                 | AST_decl_funcion
+                                                                | AST_funcion
                                                                 | AST_comentario
                                                                 ):[ P ]
     P -> SF PU  o empezar con skippeables antes   {skip}      : (AST_espacios):[ P ]
@@ -138,9 +139,9 @@ def p_sf(p):
   p[0] = AST_espacios(p[1])
 
 ''' Una declaración debe contener algo válido (no puede empezar con skippeables). Puede ser ...
-    D -> CMD    un comando                    {id, num, string} : AST_expresion | AST_invocacion | AST_asignacion
+    D -> CMD    un comando (sin function)     {id, num, string} : AST_expresion | AST_invocacion | AST_asignacion
     D -> DVAR   una declaración de variable   {let, var, const} : AST_decl_variable
-    D -> DFUNC  una declaración de función    {function}        : AST_decl_funcion
+    D -> DFUNC  una declaración de función    {function}        : AST_decl_funcion | AST_funcion
     D -> REM    un comentario                 {// | /*}         : AST_comentario
 '''
 def p_declaracion(p):
@@ -152,12 +153,12 @@ def p_declaracion(p):
   '''
   p[0] = p[1]
 
-''' Un comando es una expresión que puede tener un cierre (punto y coma y tal vez más skippeables)
+''' Un comando es una expresión (que no empiece con function) que puede tener un cierre (punto y coma y tal vez más skippeables)
     CMD -> E OPT_CIERRE   p(E) : AST_expresion | AST_invocacion | AST_asignacion
 '''
 def p_comando(p):
   '''
-  comando : expresion opt_cierre
+  comando : expresion_no_function opt_cierre
   '''
   p[0] = p[1]
   p[0].clausura(p[2])
@@ -167,7 +168,7 @@ def p_comando(p):
 '''
 def p_declaracion_variable(p):
   '''
-  decl_variable : DECL_VAR sf IDENTIFICADOR opt_variable1
+  decl_variable : DECL_VAR sf identificador_declarable opt_variable1
   '''
   cierre = None
   s_init = None
@@ -222,9 +223,30 @@ def p_variable_opt2(p):
 
 def p_declaracion_funcion(p):
   '''
-  decl_funcion : DECL_FUNC sf IDENTIFICADOR s ABRE_PAREN s CIERRA_PAREN s ABRE_LLAVE cuerpo CIERRA_LLAVE
+  decl_funcion : DECL_FUNC sf funcion opt_cierre
   '''
-  p[0] = AST_decl_funcion(p[3], p[10], p[2], p[4], p[6], p[8])
+  if len(p[3]) == 5:
+    p[0] = AST_decl_funcion(p[3][0], p[3][1], p[2], p[3][2], p[3][3], p[3][4])
+  else:
+    p[0] = AST_funcion(p[3][0], p[2], p[3][1], p[3][2])
+  if not (p[4] is None):
+    p[0].clausura(p[4])
+
+def p_funcion(p): # Lista de 5 si es una definición (id, cuerpo, s_id, s_abre, s_cierra) y de 3 si es una expresión (cuerpo, s_abre, s_cierra)
+  '''
+  funcion : funcion_no_decl
+          | IDENTIFICADOR s ABRE_PAREN s CIERRA_PAREN s ABRE_LLAVE cuerpo CIERRA_LLAVE
+  '''
+  if len(p) == 2: # Es una expresión del tipo function(){}
+    p[0] = p[1]
+  else:           # es una definición
+    p[0] = (p[1], p[8], p[2], p[4], p[6])
+
+def p_funcion_no_decl(p): # Lista de 3 (cuerpo, s_abre, s_cierra)
+  '''
+  funcion_no_decl : ABRE_PAREN s CIERRA_PAREN s ABRE_LLAVE cuerpo CIERRA_LLAVE
+  '''
+  p[0] = (p[6], p[2], p[4])
 
 def p_cuerpo_funcion(p):
   '''
@@ -248,10 +270,21 @@ def p_cuerpo_funcion_util(p):
     p[0] = p[2]
     p[0].insert(0, p[1])
 
-def p_expresion(p): # AST_expresion | AST_invocacion | AST_asignacion
+def p_expresion(p): # AST_expresion | AST_invocacion | AST_asignacion | AST_funcion
   '''
-  expresion : expresion_sin_id
-            | expresion_con_id
+  expresion : DECL_FUNC sf funcion_no_decl
+            | expresion_no_function
+  '''
+  if len(p) == 4: # Es una expresión del tipo function(){}
+    p[0] = AST_funcion(p[3][0], p[2], p[3][1], p[3][2])
+  else:
+    p[0] = p[1]
+
+
+def p_expresion_no_function(p): # AST_expresion | AST_invocacion | AST_asignacion
+  '''
+  expresion_no_function : expresion_sin_id
+                        | expresion_con_id
   '''
   p[0] = p[1]
 
@@ -329,6 +362,25 @@ def p_opt_identificador_asignable(p): # String
   else:
     p[0] = p[1] + p[2] + p[3]
 
+def p_identificador_declarable(p): # String
+  '''
+  identificador_declarable : IDENTIFICADOR
+                           | ABRE_LLAVE IDENTIFICADOR identificadores CIERRA_LLAVE
+  '''
+  if len(p) == 2:
+    p[0] = p[1]
+  else:
+    p[0] = '{' + p[2] + p[3] + '}'
+
+def p_identificadores(p): # String
+  '''
+  identificadores : vacio
+                  | COMA s IDENTIFICADOR identificadores
+  '''
+  p[0] = ''
+  if len(p) > 2:
+    p[0] = ',' + str(p[2]) + p[3] + p[4]
+
 def p_argumentos(p): # Lista de AST_expresion
   '''
   argumentos : vacio
@@ -381,32 +433,44 @@ def p_opt_cierre(p):
   '''
   p[0] = p[1]
 
-class AST_espacios(object):
+class AST_nodo(object):
+  def __init__(self, cierre=None):
+    self.cierre = cierre
+    self.abre = None
+  def apertura(self, c):
+    self.abre = texto_con(self.abre, c)
+  def clausura(self, c):
+    self.cierre = texto_con(self.cierre, c)
+  def restore(self,contenido=''):
+    return f"{restore(self.abre)}{contenido}{restore(self.cierre)}"
+
+class AST_espacios(AST_nodo):
   def __init__(self, espacios):
+    super().__init__()
     self.espacios = espacios
   def __str__(self):
     return self.espacios
   def restore(self):
     return self.espacios
 
-class AST_decl_variable(object):
+class AST_decl_variable(AST_nodo):
   def __init__(self, variable, asignacion=None, cierre=None, decl='let', s_var=None, s_init=None, s_val=None):
+    super().__init__(cierre)
     self.decl = decl
     self.s_var = s_var
     self.variable = variable
     self.s_init = s_init
     self.s_val = s_val
     self.asignacion = asignacion
-    self.cierre = cierre
   def __str__(self):
-    return f"Variable-{self.variable}{show(self.asignacion)}"
+    return f"Variable-{self.variable} : {show(self.asignacion)}"
   def restore(self):
     init = ''
     if not (self.asignacion is None):
       init = f"{restore(self.s_init)}={restore(self.s_val)}{restore(self.asignacion)}"
     return f"{self.decl}{restore(self.s_var)}{self.variable}{init}{restore(self.cierre)}"
 
-class AST_decl_funcion(object):
+class AST_decl_funcion(AST_nodo):
   def __init__(self, funcion, cuerpo, s_id=None, s_abreParen=None, s_cierraParen=None, s_abreLlave=None):
     self.s_id = s_id
     self.funcion = funcion
@@ -414,68 +478,70 @@ class AST_decl_funcion(object):
     self.s_cierraParen = s_cierraParen
     self.s_abreLlave = s_abreLlave
     self.cuerpo = cuerpo
+    super().__init__()
   def __str__(self):
     cuerpo = '\n\t'.join(list(map(str, self.cuerpo)))
-    return f"Fución-{self.funcion}\n\t{cuerpo}\n"
+    return f"Función-{self.funcion}\n\t{cuerpo}\n"
   def restore(self):
     cuerpo = "{" + ''.join(list(map(restore, self.cuerpo))) + "}"
-    return f"function{restore(self.s_id)}{self.funcion}{restore(self.s_abreParen)}({restore(self.s_cierraParen)}){restore(self.s_abreLlave)}{cuerpo}"
+    return super().restore(f"function{restore(self.s_id)}{self.funcion}{restore(self.s_abreParen)}({restore(self.s_cierraParen)}){restore(self.s_abreLlave)}{cuerpo}")
 
-class AST_invocacion(object):
+class AST_funcion(AST_nodo):
+  def __init__(self, cuerpo=None, s_abreParen=None, s_cierraParen=None, s_abreLlave=None):
+    self.s_abreParen = s_abreParen
+    self.s_cierraParen = s_cierraParen
+    self.s_abreLlave = s_abreLlave
+    self.cuerpo = cuerpo
+    super().__init__()
+  def __str__(self):
+    return "Función"
+  def restore(self):
+    cuerpo = ''
+    if not (cuerpo is None):
+      cuerpo = "{" + ''.join(list(map(restore, self.cuerpo))) + "}"
+    return super().restore(f"function{restore(self.s_abreParen)}({restore(self.s_cierraParen)}){restore(self.s_abreLlave)}{cuerpo}")
+
+class AST_invocacion(AST_nodo):
   def __init__(self, invocacion, args=[], cierre=None, s_abreParen=None, s_cierraParen=None):
     self.invocacion = invocacion
     self.args = args
     self.s_abreParen = s_abreParen
     self.s_cierraParen = s_cierraParen
-    self.abre = ''
-    self.cierre = cierre
-  def apertura(self, c):
-    self.abre = texto_con(self.abre, c)
-  def clausura(self, c):
-    self.cierre = texto_con(self.cierre, c)
+    super().__init__(cierre)
   def __str__(self):
     return f"Invocación-{self.invocacion} {show(self.args)}"
   def restore(self):
-    return f"{self.abre}{self.invocacion}{restore(self.s_abreParen)}({restore(self.s_cierraParen)}{restore(self.args)}){restore(self.cierre)}"
+    return super().restore(f"{self.invocacion}{restore(self.s_abreParen)}({restore(self.s_cierraParen)}{restore(self.args)})")
 
-class AST_asignacion(object):
+class AST_asignacion(AST_nodo):
   def __init__(self, variable, expresion, s_init=None, s_val=None):
     self.variable = variable
     self.s_init = s_init
     self.s_val = s_val
     self.expresion = expresion
-    self.abre = ''
-  def apertura(self, c):
-    self.abre = texto_con(self.abre, c)
-  def clausura(self, c):
-    self.expresion.clausura(c)
+    super().__init__()
   def __str__(self):
     return f"Asignación-{show(self.variable)} {show(self.expresion)}"
   def restore(self):
-    return f"{self.abre}{restore(self.variable)}{restore(self.s_init)}={restore(self.s_val)}{restore(self.expresion)}"
+    return super().restore(f"{restore(self.variable)}{restore(self.s_init)}={restore(self.s_val)}{restore(self.expresion)}")
 
-class AST_expresion(object):
+class AST_expresion(AST_nodo):
   def __init__(self, expresion, cierre=None):
     self.expresion = expresion
-    self.abre = ''
-    self.cierre = cierre
-  def apertura(self, c):
-    self.abre = texto_con(self.abre, c)
-  def clausura(self, c):
-    self.cierre = texto_con(self.cierre, c)
+    super().__init__(cierre)
   def __str__(self):
     return f"Expresión-{self.expresion}"
   def restore(self):
-    return f"{self.abre}{self.expresion}{restore(self.cierre)}"
+    return super().restore(f"{self.expresion}")
 
-class AST_comentario(object):
+class AST_comentario(AST_nodo):
   def __init__(self, contenido, cierre=None):
     self.contenido = contenido
-    self.cierre = cierre
+    super().__init__(cierre)
   def __str__(self):
     return f"Comentario-{self.contenido}"
   def restore(self):
-    return f"{self.contenido}{restore(self.cierre)}"
+    return super().restore(f"{self.contenido}")
 
 def show(x):
   if x is None:

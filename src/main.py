@@ -11,16 +11,24 @@ def main():
   contenido = leerArchivo_(nombreArchivo)
 
   tokens = tokenizar(contenido)
+  # mostrarTokens(tokens)
   ast = parsear(contenido)
-  mostrarTokens(tokens)
-  z = "\n\n"
+  mostrarAST(ast)
+  z = ""
   for a in ast:
     z += a.restore()
-  print(z)
+  if contenido == z:
+    print("Restauración exitosa")
+  else:
+    print("Falló la restauración")
 
 def mostrarTokens(tokens):
   for t in tokens:
     print(fill(t.type) + clean(t.value))
+
+def mostrarAST(ast):
+  for n in ast:
+    print(n)
 
 def fill(s):
   resultado = s
