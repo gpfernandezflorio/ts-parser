@@ -21,6 +21,7 @@ def main():
     print("Restauración exitosa")
   else:
     print("Falló la restauración")
+    print(z)
 
 def mostrarTokens(tokens):
   for t in tokens:

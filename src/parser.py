@@ -223,14 +223,16 @@ def p_variable_opt2(p):
 
 def p_declaracion_funcion(p):
   '''
-  decl_funcion : DECL_FUNC s funcion opt_cierre
+  decl_funcion : DECL_FUNC s funcion opt_invocacion opt_cierre
   '''
   if len(p[3]) == 5:
     p[0] = AST_decl_funcion(p[3][0], p[3][1], p[2], p[3][2], p[3][3], p[3][4])
   else:
     p[0] = AST_funcion(p[3][0], p[2], p[3][1], p[3][2])
-  if not (p[4] is None):
-    p[0].clausura(p[4])
+    if not (p[4] is None):
+      p[0] = AST_invocacion(p[0], p[4][0], p[4][1], p[4][2], p[4][3])
+  if not (p[5] is None):
+    p[0].clausura(p[5])
 
 def p_funcion(p): # Lista de 5 si es una definición (id, cuerpo, s_id, s_abre, s_cierra) y de 3 si es una expresión (cuerpo, s_abre, s_cierra)
   '''
@@ -272,11 +274,13 @@ def p_cuerpo_funcion_util(p):
 
 def p_expresion(p): # AST_expresion | AST_invocacion | AST_asignacion | AST_funcion
   '''
-  expresion : DECL_FUNC sf funcion_no_decl
+  expresion : DECL_FUNC sf funcion_no_decl opt_invocacion
             | expresion_no_function
   '''
-  if len(p) == 4: # Es una expresión del tipo function(){}
+  if len(p) == 5: # Es una expresión del tipo function(){}
     p[0] = AST_funcion(p[3][0], p[2], p[3][1], p[3][2])
+    if not (p[4] is None):
+      p[0] = AST_invocacion(p[0], p[4][0], p[4][1], p[4][2], p[4][3])
   else:
     p[0] = p[1]
 
@@ -345,6 +349,16 @@ def p_opt_identificador3(p): # Lista de 3 (args, s_cierra, s_fin) o de 2 (val, s
     p[0] = (p[3], p[2])
   else:
     p[0] = (p[3], p[2], p[5])
+
+def p_opt_invocacion(p): # None o lista de 3 (args, s_cierra, s_fin)
+  '''
+  opt_invocacion : vacio
+                 | s ABRE_PAREN s argumentos CIERRA_PAREN s
+  '''
+  if len(p) == 2:
+    p[0] = None
+  else:
+    p[0] = (p[4], p[6], p[1], p[3])
 
 def p_identificador_asignable(p): # AST_identificador
   '''
@@ -513,7 +527,7 @@ class AST_invocacion(AST_nodo):
   def __str__(self):
     return f"Invocación-{str(self.invocacion)} {show(self.args)}"
   def restore(self):
-    return super().restore(f"{self.invocacion}{restore(self.s_abreParen)}({restore(self.s_cierraParen)}{restore(self.args)})")
+    return super().restore(f"{restore(self.invocacion)}{restore(self.s_abreParen)}({restore(self.s_cierraParen)}{restore(self.args)})")
 
 class AST_asignacion(AST_nodo):
   def __init__(self, variable, expresion, s_init=None, s_val=None):
