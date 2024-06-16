@@ -7,6 +7,8 @@ tokens = (
   'IDENTIFICADOR',
   'NUMERO',
   'STRING',
+  'COMENTARIO_UL',
+  'COMENTARIO_ML',
   'ASIGNACION',
   'ABRE_PAREN',
   'CIERRA_PAREN',
@@ -29,6 +31,8 @@ def t_IDENTIFICADOR(t):
   return t
 t_NUMERO = r'(\d*\.\d+)|\d+'
 t_STRING = r'("[^"]*")|(\'[^\']*\')'
+t_COMENTARIO_UL = r'//[^\n\r]*'
+t_COMENTARIO_ML = r'/\*([^\*\/]|/[^\*]+|\*)*\*/'
 t_ASIGNACION = r'='
 t_ABRE_PAREN = r'\('
 t_CIERRA_PAREN = r'\)'
@@ -66,10 +70,11 @@ def token(tipo, valor, linea, pos):
   return t
 
 def p_error(p):
-  print(f'Syntax error at {p.value!r}')
+  print(f'Error en línea {p.lineno} {p.value!r}')
+  exit(1)
 
 ''' Un programa puede ser ...
-    P -> PU     una lista de declaraciones        p(D) U {.}  : (AST_expresion|AST_decl_variable|AST_decl_funcion):[ P ]
+    P -> PU     una lista de declaraciones        p(D) U {.}  : (AST_expresion|AST_decl_variable|AST_decl_funcion|AST_comentario):[ P ]
     P -> SF PU  o empezar con skippeables antes   {skip}      : (AST_espacios):[ P ]
 '''
 def p_programa(p):
@@ -122,12 +127,14 @@ def p_sf(p):
     D -> CMD    un comando                    {id, num, string} : AST_expresion
     D -> DVAR   una declaración de variable   {let, var, const} : AST_decl_variable
     D -> DFUNC  una declaración de función    {function}        : AST_decl_funcion
+    D -> REM    un comentario                 {// | /*}         : AST_comentario
 '''
 def p_declaracion(p):
   '''
   declaracion : comando
               | decl_variable
               | decl_funcion
+              | comentario
   '''
   p[0] = p[1]
 
@@ -292,6 +299,13 @@ def p_opt_identificador3(p): # Lista de 3 (args, s_cierra, s_fin) o de 2 (val, s
   else:
     p[0] = (None, p[2], p[4])
 
+def p_comentario(p):
+  '''
+  comentario : COMENTARIO_UL s
+             | COMENTARIO_ML s
+  '''
+  p[0] = AST_comentario(p[1], p[2])
+
 def p_vacio(p):
   'vacio :'
   p[0] = None
@@ -385,6 +399,15 @@ class AST_expresion(object):
     return f"Expresión-{self.expresion}"
   def restore(self):
     return f"{self.expresion}{restore(self.cierre)}"
+
+class AST_comentario(object):
+  def __init__(self, contenido, cierre):
+    self.contenido = contenido
+    self.cierre = cierre
+  def __str__(self):
+    return f"Comentario-{self.contenido}"
+  def restore(self):
+    return f"{self.contenido}{restore(self.cierre)}"
 
 def show(x):
   if x is None:

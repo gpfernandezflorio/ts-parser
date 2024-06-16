@@ -1,5 +1,3 @@
-import os
-from utils import leerArchivo_
 from parser import tokenizar, parsear
 from parser import token as t
 from parser import AST_espacios as espacios
