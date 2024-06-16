@@ -15,6 +15,8 @@ tokens = (
   'ABRE_LLAVE',
   'CIERRA_LLAVE',
   'PUNTO_Y_COMA',
+  'PUNTO',
+  'COMA',
   'SKIP'
 )
 
@@ -32,13 +34,19 @@ def t_IDENTIFICADOR(t):
 t_NUMERO = r'(\d*\.\d+)|\d+'
 t_STRING = r'("[^"]*")|(\'[^\']*\')'
 t_COMENTARIO_UL = r'//[^\n\r]*'
-t_COMENTARIO_ML = r'/\*([^\*\/]|/[^\*]+|\*)*\*/'
+def t_COMENTARIO_ML(t):
+  r'/\*([^\*]|\*[^/])*\*/'
+  t.type = "COMENTARIO_ML"
+  t.lexer.lineno += t.value.count('\n')
+  return t
 t_ASIGNACION = r'='
 t_ABRE_PAREN = r'\('
 t_CIERRA_PAREN = r'\)'
 t_ABRE_LLAVE = r'{'
 t_CIERRA_LLAVE = r'}'
 t_PUNTO_Y_COMA = r';'
+t_PUNTO = r'\.'
+t_COMA = r','
 def t_SKIP(t):
   r'(\ |\t|\n)+'
   t.type = "SKIP"
@@ -74,7 +82,13 @@ def p_error(p):
   exit(1)
 
 ''' Un programa puede ser ...
-    P -> PU     una lista de declaraciones        p(D) U {.}  : (AST_expresion|AST_decl_variable|AST_decl_funcion|AST_comentario):[ P ]
+    P -> PU     una lista de declaraciones        p(D) U {.}  : ( AST_expresion
+                                                                | AST_invocacion
+                                                                | AST_asignacion
+                                                                | AST_decl_variable
+                                                                | AST_decl_funcion
+                                                                | AST_comentario
+                                                                ):[ P ]
     P -> SF PU  o empezar con skippeables antes   {skip}      : (AST_espacios):[ P ]
 '''
 def p_programa(p):
@@ -124,7 +138,7 @@ def p_sf(p):
   p[0] = AST_espacios(p[1])
 
 ''' Una declaración debe contener algo válido (no puede empezar con skippeables). Puede ser ...
-    D -> CMD    un comando                    {id, num, string} : AST_expresion
+    D -> CMD    un comando                    {id, num, string} : AST_expresion | AST_invocacion | AST_asignacion
     D -> DVAR   una declaración de variable   {let, var, const} : AST_decl_variable
     D -> DFUNC  una declaración de función    {function}        : AST_decl_funcion
     D -> REM    un comentario                 {// | /*}         : AST_comentario
@@ -139,7 +153,7 @@ def p_declaracion(p):
   p[0] = p[1]
 
 ''' Un comando es una expresión que puede tener un cierre (punto y coma y tal vez más skippeables)
-    CMD -> E OPT_CIERRE   p(E) : AST_expresion
+    CMD -> E OPT_CIERRE   p(E) : AST_expresion | AST_invocacion | AST_asignacion
 '''
 def p_comando(p):
   '''
@@ -234,7 +248,7 @@ def p_cuerpo_funcion_util(p):
     p[0] = p[2]
     p[0].insert(0, p[1])
 
-def p_expresion(p):
+def p_expresion(p): # AST_expresion | AST_invocacion | AST_asignacion
   '''
   expresion : expresion_sin_id
             | expresion_con_id
@@ -252,7 +266,7 @@ def p_expresion_sin_id(p):
 
 def p_expresion_con_id(p):
   '''
-  expresion_con_id : IDENTIFICADOR opt_identificador1
+  expresion_con_id : identificador_asignable opt_identificador1
   '''
   if (p[2] is None) or isinstance(p[2], AST_espacios):
     p[0] = AST_expresion(p[1], p[2])
@@ -291,13 +305,57 @@ def p_opt_identificador2(p): # None, lista de 3 (args, s_cierra, s_fin) o lista 
 
 def p_opt_identificador3(p): # Lista de 3 (args, s_cierra, s_fin) o de 2 (val, s_val)
   '''
-  opt_identificador3 : ABRE_PAREN s CIERRA_PAREN s
+  opt_identificador3 : ABRE_PAREN s argumentos CIERRA_PAREN s
                      | ASIGNACION s expresion
   '''
   if p[1] == '=':
     p[0] = (p[3], p[2])
   else:
-    p[0] = (None, p[2], p[4])
+    p[0] = (p[3], p[2], p[5])
+
+def p_identificador_asignable(p): # String
+  '''
+  identificador_asignable : IDENTIFICADOR opt_identificador_asignable
+  '''
+  p[0] = p[1] + p[2]
+
+def p_opt_identificador_asignable(p): # String
+  '''
+  opt_identificador_asignable : vacio
+                              | PUNTO IDENTIFICADOR opt_identificador_asignable
+  '''
+  if p[1] is None:
+    p[0] = ''
+  else:
+    p[0] = p[1] + p[2] + p[3]
+
+def p_argumentos(p): # Lista de AST_expresion
+  '''
+  argumentos : vacio
+             | mas_argumentos
+  '''
+  if p[1] is None:
+    p[0] = []
+  else:
+    p[0] = p[1]
+
+def p_opt_mas_argumentos(p): # Lista de AST_expresion (puede ser vacía)
+  '''
+  opt_mas_argumentos : vacio
+                     | COMA s mas_argumentos
+  '''
+  if p[1] is None:
+    p[0] = []
+  else:
+    p[0] = p[3]
+    p[0][0].apertura(p[2])
+
+def p_mas_argumentos(p): # Lista de AST_expresion (NO puede ser vacía)
+  '''
+  mas_argumentos : expresion opt_mas_argumentos
+  '''
+  p[0] = p[2]
+  p[0].insert(0, p[1])
 
 def p_comentario(p):
   '''
@@ -364,17 +422,21 @@ class AST_decl_funcion(object):
     return f"function{restore(self.s_id)}{self.funcion}{restore(self.s_abreParen)}({restore(self.s_cierraParen)}){restore(self.s_abreLlave)}{cuerpo}"
 
 class AST_invocacion(object):
-  def __init__(self, invocacion, args=None, cierre=None, s_abreParen=None, s_cierraParen=None):
+  def __init__(self, invocacion, args=[], cierre=None, s_abreParen=None, s_cierraParen=None):
     self.invocacion = invocacion
+    self.args = args
     self.s_abreParen = s_abreParen
     self.s_cierraParen = s_cierraParen
+    self.abre = ''
     self.cierre = cierre
+  def apertura(self, c):
+    self.abre = texto_con(self.abre, c)
   def clausura(self, c):
     self.cierre = texto_con(self.cierre, c)
   def __str__(self):
-    return f"Invocación-{self.invocacion}"
+    return f"Invocación-{self.invocacion} {show(self.args)}"
   def restore(self):
-    return f"{self.invocacion}{restore(self.s_abreParen)}({restore(self.s_cierraParen)}){restore(self.cierre)}"
+    return f"{self.abre}{self.invocacion}{restore(self.s_abreParen)}({restore(self.s_cierraParen)}{restore(self.args)}){restore(self.cierre)}"
 
 class AST_asignacion(object):
   def __init__(self, variable, expresion, s_init=None, s_val=None):
@@ -382,26 +444,32 @@ class AST_asignacion(object):
     self.s_init = s_init
     self.s_val = s_val
     self.expresion = expresion
+    self.abre = ''
+  def apertura(self, c):
+    self.abre = texto_con(self.abre, c)
   def clausura(self, c):
     self.expresion.clausura(c)
   def __str__(self):
-    return f"Asignación-{show(self.variable)} {str(self.expresion)}"
+    return f"Asignación-{show(self.variable)} {show(self.expresion)}"
   def restore(self):
-    return f"{restore(self.variable)}{restore(self.s_init)}={restore(self.s_val)}{restore(self.expresion)}"
+    return f"{self.abre}{restore(self.variable)}{restore(self.s_init)}={restore(self.s_val)}{restore(self.expresion)}"
 
 class AST_expresion(object):
   def __init__(self, expresion, cierre=None):
     self.expresion = expresion
+    self.abre = ''
     self.cierre = cierre
+  def apertura(self, c):
+    self.abre = texto_con(self.abre, c)
   def clausura(self, c):
     self.cierre = texto_con(self.cierre, c)
   def __str__(self):
     return f"Expresión-{self.expresion}"
   def restore(self):
-    return f"{self.expresion}{restore(self.cierre)}"
+    return f"{self.abre}{self.expresion}{restore(self.cierre)}"
 
 class AST_comentario(object):
-  def __init__(self, contenido, cierre):
+  def __init__(self, contenido, cierre=None):
     self.contenido = contenido
     self.cierre = cierre
   def __str__(self):
@@ -412,6 +480,8 @@ class AST_comentario(object):
 def show(x):
   if x is None:
     return ''
+  if type(x) == type([]):
+    return f"[{' '.join(list(map(show,x)))}]"
   return str(x)
 
 def restore(x):
@@ -419,6 +489,8 @@ def restore(x):
     return ''
   if type(x) == type(''):
     return x
+  if type(x) == type([]):
+    return ','.join(list(map(restore,x)))
   return x.restore()
 
 def texto_con(s1, s2):

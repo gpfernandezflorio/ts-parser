@@ -6,6 +6,7 @@ from parser import AST_decl_variable as variable
 from parser import AST_asignacion as asignacion
 from parser import AST_expresion as expresion
 from parser import AST_decl_funcion as funcion
+from parser import AST_comentario as comentario
 
 def id(s,i,f):
   return t('IDENTIFICADOR',s,i,f)
@@ -70,7 +71,7 @@ casos_de_test = [
     t('ABRE_PAREN','(',2,21),
     t('CIERRA_PAREN',')',2,22),
     t('PUNTO_Y_COMA',';',2,23),
-    t('SKIP','  \n\n  ',2,24),
+    t('SKIP','  \n\n  ',2,24)
   ], [espacios('\t \t '),
       invocacion('hola'),
       invocacion('chau'),
@@ -128,12 +129,59 @@ casos_de_test = [
     n('.66',1,31),
     t('SKIP','\t',1,34),
     t('PUNTO_Y_COMA',';',1,35),
-    t('CIERRA_LLAVE','}',1,36),
+    t('CIERRA_LLAVE','}',1,36)
   ], [funcion('HOLA',[
         asignacion('x',expresion('2.5')),
         variable('y',expresion('.66'))
     ])
   ]),
+  Test("Comentarios",
+    "/**/a // b \n// // hola /* */\na\n/*\n\nhola\n\n*/\na\n/*\n\nchau\n\n*/",[
+    t('COMENTARIO_ML','/**/',1,0),
+    id('a',1,4),
+    t('SKIP',' ',1,5),
+    t('COMENTARIO_UL','// b ',1,6),
+    t('SKIP','\n',1,11),
+    t('COMENTARIO_UL','// // hola /* */',2,12),
+    t('SKIP','\n',2,28),
+    id('a',3,29),
+    t('SKIP','\n',3,30),
+    t('COMENTARIO_ML','/*\n\nhola\n\n*/',4,31),
+    t('SKIP','\n',8,43),
+    id('a',9,44),
+    t('SKIP','\n',9,45),
+    t('COMENTARIO_ML','/*\n\nchau\n\n*/',10,46)
+  ], [comentario('/**/'),
+      expresion('a'),
+      comentario('// b '),
+      comentario('// // hola /* */'),
+      expresion('a'),
+      comentario('/*\n\nhola\n\n*/'),
+      expresion('a'),
+      comentario('/*\n\nchau\n\n*/')
+  ]),
+  Test("Invocación a una función",
+    "a.b.c(5, chau(  )  ,  3)",[
+    id('a',1,0),
+    t('PUNTO','.',1,1),
+    id('b',1,2),
+    t('PUNTO','.',1,3),
+    id('c',1,4),
+    t('ABRE_PAREN','(',1,5),
+    n('5',1,6),
+    t('COMA',',',1,7),
+    t('SKIP',' ',1,8),
+    id('chau',1,9),
+    t('ABRE_PAREN','(',1,13),
+    t('SKIP','  ',1,14),
+    t('CIERRA_PAREN',')',1,16),
+    t('SKIP','  ',1,17),
+    t('COMA',',',1,19),
+    t('SKIP','  ',1,20),
+    n('3',1,22),
+    t('CIERRA_PAREN',')',1,23)
+  ], [invocacion('a.b.c', [expresion('5'),invocacion('chau'),expresion('3')])
+  ])
 ]
 
 def evaluar(test):
