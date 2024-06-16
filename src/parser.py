@@ -223,7 +223,7 @@ def p_variable_opt2(p):
 
 def p_declaracion_funcion(p):
   '''
-  decl_funcion : DECL_FUNC sf funcion opt_cierre
+  decl_funcion : DECL_FUNC s funcion opt_cierre
   '''
   if len(p[3]) == 5:
     p[0] = AST_decl_funcion(p[3][0], p[3][1], p[2], p[3][2], p[3][3], p[3][4])
@@ -346,31 +346,33 @@ def p_opt_identificador3(p): # Lista de 3 (args, s_cierra, s_fin) o de 2 (val, s
   else:
     p[0] = (p[3], p[2], p[5])
 
-def p_identificador_asignable(p): # String
+def p_identificador_asignable(p): # AST_identificador
   '''
   identificador_asignable : IDENTIFICADOR opt_identificador_asignable
   '''
-  p[0] = p[1] + p[2]
+  p[0] = AST_identificador(p[1])
+  p[0].extender(p[2])
 
-def p_opt_identificador_asignable(p): # String
+def p_opt_identificador_asignable(p): # None o AST_identificador
   '''
   opt_identificador_asignable : vacio
                               | PUNTO IDENTIFICADOR opt_identificador_asignable
   '''
   if p[1] is None:
-    p[0] = ''
+    p[0] = None
   else:
-    p[0] = p[1] + p[2] + p[3]
+    p[0] = AST_identificador(p[2], 'PUNTO')
+    p[0].extender(p[3])
 
-def p_identificador_declarable(p): # String
+def p_identificador_declarable(p): # AST_identificador
   '''
   identificador_declarable : IDENTIFICADOR
                            | ABRE_LLAVE IDENTIFICADOR identificadores CIERRA_LLAVE
   '''
   if len(p) == 2:
-    p[0] = p[1]
+    p[0] = AST_identificador(p[1])
   else:
-    p[0] = '{' + p[2] + p[3] + '}'
+    p[0] = AST_identificador('{' + p[2] + p[3] + '}')
 
 def p_identificadores(p): # String
   '''
@@ -509,7 +511,7 @@ class AST_invocacion(AST_nodo):
     self.s_cierraParen = s_cierraParen
     super().__init__(cierre)
   def __str__(self):
-    return f"Invocación-{self.invocacion} {show(self.args)}"
+    return f"Invocación-{str(self.invocacion)} {show(self.args)}"
   def restore(self):
     return super().restore(f"{self.invocacion}{restore(self.s_abreParen)}({restore(self.s_cierraParen)}{restore(self.args)})")
 
@@ -524,6 +526,29 @@ class AST_asignacion(AST_nodo):
     return f"Asignación-{show(self.variable)} {show(self.expresion)}"
   def restore(self):
     return super().restore(f"{restore(self.variable)}{restore(self.s_init)}={restore(self.s_val)}{restore(self.expresion)}")
+
+class AST_identificador(AST_nodo):
+  def __init__(self, identificador, clase='ATOM'):
+    self.clase = clase
+    self.identificador = identificador
+    self.extension = None
+    super().__init__()
+  def extender(self, e):
+    self.extension = e
+  def __str__(self):
+    m = self.identificador
+    if self.clase == 'PUNTO':
+      m = '.' + m
+    if not (self.extension is None):
+      m += str(self.extension)
+    return m
+  def restore(self):
+    m = self.identificador
+    if self.clase == 'PUNTO':
+      m = '.' + m
+    if not (self.extension is None):
+      m += self.extension.restore()
+    return super().restore(f"{m}")
 
 class AST_expresion(AST_nodo):
   def __init__(self, expresion, cierre=None):
