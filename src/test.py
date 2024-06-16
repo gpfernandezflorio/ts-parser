@@ -9,6 +9,12 @@ from parser import AST_asignacion as asignacion
 from parser import AST_expresion as expresion
 from parser import AST_decl_funcion as funcion
 
+def id(s,i,f):
+  return t('IDENTIFICADOR',s,i,f)
+
+def n(s,i,f):
+  return t('NUMERO',s,i,f)
+
 def main():
   for test in casos_de_test:
     if evaluar(test):
@@ -29,7 +35,7 @@ casos_de_test = [
     "",[], []),
   Test("Un comando",
     "hola();",[
-    t('IDENTIFICADOR','hola',1,0),
+    id('hola',1,0),
     t('ABRE_PAREN','(',1,4),
     t('CIERRA_PAREN',')',1,5),
     t('PUNTO_Y_COMA',';',1,6)
@@ -37,12 +43,12 @@ casos_de_test = [
   ]),
   Test("Dos comandos",
     "hola();\nchau();",[
-    t('IDENTIFICADOR','hola',1,0),
+    id('hola',1,0),
     t('ABRE_PAREN','(',1,4),
     t('CIERRA_PAREN',')',1,5),
     t('PUNTO_Y_COMA',';',1,6),
     t('SKIP','\n',1,7),
-    t('IDENTIFICADOR','chau',2,8),
+    id('chau',2,8),
     t('ABRE_PAREN','(',2,12),
     t('CIERRA_PAREN',')',2,13),
     t('PUNTO_Y_COMA',';',2,14)
@@ -57,12 +63,12 @@ casos_de_test = [
   Test("Comandos con blancos",
     "\t \t hola();\t \n\t \tchau();  \n\n  ",[
     t('SKIP','\t \t ',1,0),
-    t('IDENTIFICADOR','hola',1,4),
+    id('hola',1,4),
     t('ABRE_PAREN','(',1,8),
     t('CIERRA_PAREN',')',1,9),
     t('PUNTO_Y_COMA',';',1,10),
     t('SKIP','\t \n\t \t',1,11),
-    t('IDENTIFICADOR','chau',2,17),
+    id('chau',2,17),
     t('ABRE_PAREN','(',2,21),
     t('CIERRA_PAREN',')',2,22),
     t('PUNTO_Y_COMA',';',2,23),
@@ -76,11 +82,11 @@ casos_de_test = [
     t('SKIP','\t',1,0),
     t('DECL_VAR','let',1,1),
     t('SKIP',' ',1,4),
-    t('IDENTIFICADOR','x',1,5),
+    id('x',1,5),
     t('SKIP','\t',1,6),
     t('ASIGNACION','=',1,7),
     t('SKIP','  ',1,8),
-    t('NUMERO','5',1,10)
+    n('5',1,10)
   ], [espacios('\t'),
       variable('x',expresion('5'))
   ]),
@@ -88,14 +94,14 @@ casos_de_test = [
     "const\tx;x =\n'2'x=\"true\"",[
     t('DECL_VAR','const',1,0),
     t('SKIP','\t',1,5),
-    t('IDENTIFICADOR','x',1,6),
+    id('x',1,6),
     t('PUNTO_Y_COMA',';',1,7),
-    t('IDENTIFICADOR','x',1,8),
+    id('x',1,8),
     t('SKIP',' ',1,9),
     t('ASIGNACION','=',1,10),
     t('SKIP','\n',1,11),
     t('STRING',"'2'",2,12),
-    t('IDENTIFICADOR','x',2,15),
+    id('x',2,15),
     t('ASIGNACION','=',2,16),
     t('STRING','"true"',2,17)
   ], [variable('x'),
@@ -106,22 +112,22 @@ casos_de_test = [
     "function HOLA() {x=2.5;let y = .66\t;}",[
     t('DECL_FUNC','function',1,0),
     t('SKIP',' ',1,8),
-    t('IDENTIFICADOR','HOLA',1,9),
+    id('HOLA',1,9),
     t('ABRE_PAREN','(',1,13),
     t('CIERRA_PAREN',')',1,14),
     t('SKIP',' ',1,15),
     t('ABRE_LLAVE','{',1,16),
-    t('IDENTIFICADOR','x',1,17),
+    id('x',1,17),
     t('ASIGNACION','=',1,18),
-    t('NUMERO','2.5',1,19),
+    n('2.5',1,19),
     t('PUNTO_Y_COMA',';',1,22),
     t('DECL_VAR','let',1,23),
     t('SKIP',' ',1,26),
-    t('IDENTIFICADOR','y',1,27),
+    id('y',1,27),
     t('SKIP',' ',1,28),
     t('ASIGNACION','=',1,29),
     t('SKIP',' ',1,30),
-    t('NUMERO','.66',1,31),
+    n('.66',1,31),
     t('SKIP','\t',1,34),
     t('PUNTO_Y_COMA',';',1,35),
     t('CIERRA_LLAVE','}',1,36),
