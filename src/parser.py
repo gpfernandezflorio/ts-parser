@@ -225,30 +225,40 @@ def p_declaracion_funcion(p):
   '''
   decl_funcion : DECL_FUNC s funcion opt_invocacion opt_cierre
   '''
-  if len(p[3]) == 5:
-    p[0] = AST_decl_funcion(p[3][0], p[3][1], p[2], p[3][2], p[3][3], p[3][4])
+  if len(p[3]) == 6:
+    p[0] = AST_decl_funcion(p[3][0], p[3][1], p[3][2], p[2], p[3][3], p[3][4], p[3][5])
   else:
-    p[0] = AST_funcion(p[3][0], p[2], p[3][1], p[3][2])
+    p[0] = AST_funcion(p[3][0], p[3][1], p[2], p[3][2], p[3][3])
     if not (p[4] is None):
       p[0] = AST_invocacion(p[0], p[4][0], p[4][1], p[4][2], p[4][3])
   if not (p[5] is None):
     p[0].clausura(p[5])
 
-def p_funcion(p): # Lista de 5 si es una definición (id, cuerpo, s_id, s_abre, s_cierra) y de 3 si es una expresión (cuerpo, s_abre, s_cierra)
+def p_funcion(p): # Lista de 6 si es una definición (id, params, cuerpo, s_id, s_abre, s_cierra) y de 4 si es una expresión (params, cuerpo, s_abre, s_cierra)
   '''
   funcion : funcion_no_decl
-          | IDENTIFICADOR s ABRE_PAREN s CIERRA_PAREN s ABRE_LLAVE cuerpo CIERRA_LLAVE
+          | IDENTIFICADOR s ABRE_PAREN s parametros CIERRA_PAREN s ABRE_LLAVE cuerpo CIERRA_LLAVE
   '''
   if len(p) == 2: # Es una expresión del tipo function(){}
     p[0] = p[1]
   else:           # es una definición
-    p[0] = (p[1], p[8], p[2], p[4], p[6])
+    p[0] = (p[1], p[5], p[9], p[2], p[4], p[7])
 
-def p_funcion_no_decl(p): # Lista de 3 (cuerpo, s_abre, s_cierra)
+def p_funcion_no_decl(p): # Lista de 4 (parametros, cuerpo, s_abre, s_cierra)
   '''
-  funcion_no_decl : ABRE_PAREN s CIERRA_PAREN s ABRE_LLAVE cuerpo CIERRA_LLAVE
+  funcion_no_decl : ABRE_PAREN s parametros CIERRA_PAREN s ABRE_LLAVE cuerpo CIERRA_LLAVE
   '''
-  p[0] = (p[6], p[2], p[4])
+  p[0] = (p[3], p[7], p[2], p[5])
+
+def p_parametros(p): # Lista de identificadores
+  '''
+  parametros : vacio
+             | IDENTIFICADOR identificadores
+  '''
+  if len(p) == 2:
+    p[0] = []
+  else:
+    p[0] = [p[1] + p[2]]
 
 def p_cuerpo_funcion(p):
   '''
@@ -278,7 +288,7 @@ def p_expresion(p): # AST_expresion | AST_invocacion | AST_asignacion | AST_func
             | expresion_no_function
   '''
   if len(p) == 5: # Es una expresión del tipo function(){}
-    p[0] = AST_funcion(p[3][0], p[2], p[3][1], p[3][2])
+    p[0] = AST_funcion(p[3][0], p[3][1], p[2], p[3][2], p[3][3])
     if not (p[4] is None):
       p[0] = AST_invocacion(p[0], p[4][0], p[4][1], p[4][2], p[4][3])
   else:
@@ -487,12 +497,13 @@ class AST_decl_variable(AST_nodo):
     return f"{self.decl}{restore(self.s_var)}{self.variable}{init}{restore(self.cierre)}"
 
 class AST_decl_funcion(AST_nodo):
-  def __init__(self, funcion, cuerpo, s_id=None, s_abreParen=None, s_cierraParen=None, s_abreLlave=None):
+  def __init__(self, funcion, parametros=[], cuerpo=None, s_id=None, s_abreParen=None, s_cierraParen=None, s_abreLlave=None):
     self.s_id = s_id
     self.funcion = funcion
     self.s_abreParen = s_abreParen
     self.s_cierraParen = s_cierraParen
     self.s_abreLlave = s_abreLlave
+    self.parametros = parametros
     self.cuerpo = cuerpo
     super().__init__()
   def __str__(self):
@@ -500,13 +511,14 @@ class AST_decl_funcion(AST_nodo):
     return f"Función-{self.funcion}\n\t{cuerpo}\n"
   def restore(self):
     cuerpo = "{" + ''.join(list(map(restore, self.cuerpo))) + "}"
-    return super().restore(f"function{restore(self.s_id)}{self.funcion}{restore(self.s_abreParen)}({restore(self.s_cierraParen)}){restore(self.s_abreLlave)}{cuerpo}")
+    return super().restore(f"function{restore(self.s_id)}{self.funcion}{restore(self.s_abreParen)}({restore(self.s_cierraParen)}{restore(self.parametros)}){restore(self.s_abreLlave)}{cuerpo}")
 
 class AST_funcion(AST_nodo):
-  def __init__(self, cuerpo=None, s_abreParen=None, s_cierraParen=None, s_abreLlave=None):
+  def __init__(self, parametros=[], cuerpo=None, s_abreParen=None, s_cierraParen=None, s_abreLlave=None):
     self.s_abreParen = s_abreParen
     self.s_cierraParen = s_cierraParen
     self.s_abreLlave = s_abreLlave
+    self.parametros = parametros
     self.cuerpo = cuerpo
     super().__init__()
   def __str__(self):
@@ -515,7 +527,7 @@ class AST_funcion(AST_nodo):
     cuerpo = ''
     if not (cuerpo is None):
       cuerpo = "{" + ''.join(list(map(restore, self.cuerpo))) + "}"
-    return super().restore(f"function{restore(self.s_abreParen)}({restore(self.s_cierraParen)}){restore(self.s_abreLlave)}{cuerpo}")
+    return super().restore(f"function{restore(self.s_abreParen)}({restore(self.s_cierraParen)}{restore(self.parametros)}){restore(self.s_abreLlave)}{cuerpo}")
 
 class AST_invocacion(AST_nodo):
   def __init__(self, invocacion, args=[], cierre=None, s_abreParen=None, s_cierraParen=None):
