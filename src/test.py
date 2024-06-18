@@ -1,3 +1,4 @@
+import sys
 from parser import tokenizar, parsear
 from parser import token as t
 from parser import AST_espacios as espacios
@@ -22,10 +23,23 @@ def funcion(nombre, parametros, cuerpo):
   return AST_declaracion_funcion(nombre, parametros, cuerpo)
 
 def main():
+  if len(sys.argv) > 1:
+    ntest = int(sys.argv[1])
+    if ntest >= 0 and ntest < len(casos_de_test):
+      test = casos_de_test[ntest]
+      print(f"{ntest} {test.desc}")
+      if evaluar(test):
+        exit(1)
+      print(f"OK")
+      exit(0)
+    print(f"Número de test {ntest} inválido. Debe estar entre 0 y {len(casos_de_test)-1}.")
+    exit(1)
+  i = 0
   for test in casos_de_test:
     if evaluar(test):
       exit(1)
-    print(test.desc + " OK")
+    print(f"{i} {test.desc} OK")
+    i += 1
   print("Todos los test pasaron correctamente")
   exit(0)
 
@@ -143,7 +157,7 @@ casos_de_test = [
     ])
   ]),
   Test("Comentarios",
-    "/**/a // b \n// // hola /* */\na\n/*\n\nhola\n\n*/\na\n/*\n\nchau\n\n*/",[
+    "/**/a // b \n// // hola /* */\nc\n/*\n\nhola\n\n*/\nd\n/*\n\nchau\n\n*/",[
     t('COMENTARIO_ML','/**/',1,0),
     id('a',1,4),
     t('SKIP',' ',1,5),
@@ -151,21 +165,21 @@ casos_de_test = [
     t('SKIP','\n',1,11),
     t('COMENTARIO_UL','// // hola /* */',2,12),
     t('SKIP','\n',2,28),
-    id('a',3,29),
+    id('c',3,29),
     t('SKIP','\n',3,30),
     t('COMENTARIO_ML','/*\n\nhola\n\n*/',4,31),
     t('SKIP','\n',8,43),
-    id('a',9,44),
+    id('d',9,44),
     t('SKIP','\n',9,45),
     t('COMENTARIO_ML','/*\n\nchau\n\n*/',10,46)
-  ], [comentario('/**/'),
+  ], [comentario('/**/'), # Nota: los comentarios siguientes pasan a ser la clausura de los nodos anteriores
       identificador('a'),
-      comentario('// b '),
-      comentario('// // hola /* */'),
-      identificador('a'),
-      comentario('/*\n\nhola\n\n*/'),
-      identificador('a'),
-      comentario('/*\n\nchau\n\n*/')
+      # comentario('// b '),
+      # comentario('// // hola /* */'),
+      identificador('c'),
+      # comentario('/*\n\nhola\n\n*/'),
+      identificador('d'),
+      # comentario('/*\n\nchau\n\n*/')
   ]),
   Test("Invocación a una función",
     "a.b.c(5, chau(  )  ,  3)",[

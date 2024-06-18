@@ -210,7 +210,7 @@ def p_definicion_funcion(p): # AST_expresion_funcion | AST_invocacion
   '''
   parametros = p[1]           # AST_parametros
   s = p[2]                    # [AST_skippeable]
-  cuerpo = p[3]               # AST_cuerpo
+  cuerpo = p[3]               # [AST_nodo]
   modificador_funcion = p[4]  # AST_argumentos | [AST_skippeable]
   parametros.clausura(s)
   expresion = AST_expresion_funcion(parametros, cuerpo)
@@ -267,7 +267,7 @@ def p_parametros(p): # AST_parametros
   p[0].apertura(s)
   p[0].clausura(cierra)
 
-def p_cuerpo(p): # AST_cuerpo
+def p_cuerpo(p): # [AST_nodo]
   '''
   cuerpo : ABRE_LLAVE programa CIERRA_LLAVE
   '''
@@ -373,7 +373,7 @@ def p_modificador_variable_cierre(p): # [AST_skippeable]
 
 # DECLARACIÓN : IDENTIFICADOR (asignación o invocación)
  #################################################################################################
-def p_declaracion_id(p): # AST_invocacion | AST_asignacion
+def p_declaracion_id(p): # AST_invocacion | AST_asignacion | AST_identificador
   '''
   declaracion : IDENTIFICADOR opt_modificador_identificador
   '''
@@ -389,21 +389,37 @@ def p_opt_modificador_identificador_vacio(p): # [AST_skippeable]         {lambda
 
 def p_opt_modificador_identificador_con_skip(p): # AST_argumentos | AST_expresion         {skip, comentario}
   '''
-  opt_modificador_identificador : sf modificador_identificador
+  opt_modificador_identificador : sf modificador_identificador_o_nada
   '''
   s = p[1]                          # [AST_skippeable]
   modificador_identificador = p[2]       # AST_argumentos | AST_expresion | [AST_skippeable]
   if type(modificador_identificador) == type([]):
-    modificador_identificador[0].apertura(s)
+    if len(modificador_identificador) == 0:
+      modificador_identificador = s
+    else:
+      modificador_identificador[0].apertura(s)
   else:
     modificador_identificador.apertura(s)
+  p[0] = modificador_identificador
+
+def p_modificador_identificador_vacio(p): # [AST_skippeable]
+  '''
+  modificador_identificador_o_nada : vacio
+  '''
+  p[0] = []
+
+def p_modificador_identificador_algo(p): # AST_argumentos | AST_expresion
+  '''
+  modificador_identificador_o_nada : modificador_identificador
+  '''
+  modificador_identificador = p[1]
   p[0] = modificador_identificador
 
 def p_opt_modificador_identificador_sin_skip(p): # AST_argumentos | AST_expresion         {=, (, ;}
   '''
   opt_modificador_identificador : modificador_identificador
   '''
-  modificador_identificador = p[1]       # AST_argumentos | AST_expresion | [AST_skippeable]
+  modificador_identificador = p[1]       # AST_argumentos | AST_expresion
   p[0] = modificador_identificador
 
 def p_modificador_identificador_asignacion(p): # AST_expresion
@@ -617,11 +633,11 @@ class AST_declaracion_funcion(AST_declaracion):
     super().__init__()
     self.nombre = nombre          # AST_identificador
     self.parametros = parametros  # AST_parametros
-    self.cuerpo = cuerpo          # AST_cuerpo
+    self.cuerpo = cuerpo          # [AST_nodo]
   def __str__(self):
     return f"DeclaraciónFunción : {show(self.nombre)}"
   def restore(self):
-    return super().restore(f"{restore(self.nombre)}{restore(self.parametros)}{restore(self.cuerpo)}")
+    return super().restore(f"{restore(self.nombre)}{restore(self.parametros)}{''.join(map(restore, self.cuerpo))}")
 
 class AST_expresion(AST_declaracion):
   def __init__(self):
@@ -649,11 +665,11 @@ class AST_expresion_funcion(AST_expresion):
   def __init__(self, parametros, cuerpo):
     super().__init__()
     self.parametros = parametros  # AST_parametros
-    self.cuerpo = cuerpo          # AST_cuerpo
+    self.cuerpo = cuerpo          # [AST_nodo]
   def __str__(self):
     return f"FunciónAnónima"
   def restore(self):
-    return super().restore(f"{restore(self.parametros)}{restore(self.cuerpo)}")
+    return super().restore(f"{restore(self.parametros)}{''.join(map(restore, self.cuerpo))}")
 
 class AST_declaracion_variable(AST_declaracion):
   def __init__(self, nombre, asignacion=None):
@@ -692,7 +708,7 @@ class AST_parametros(AST_declaracion):
   def __str__(self):
     return f"Parámetros : {show(self.parametros)}"
   def restore(self):
-    return super().restore(f"{restore(self.parametros)}")
+    return super().restore(f"{''.join(map(restore, self.parametros))}")
 
 class AST_argumentos(AST_declaracion):
   def __init__(self, argumentos):
