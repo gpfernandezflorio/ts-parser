@@ -1,11 +1,12 @@
 from parser import tokenizar, parsear
 from parser import token as t
 from parser import AST_espacios as espacios
-from parser import AST_invocacion as invocacion
-from parser import AST_decl_variable as variable
+from parser import AST_invocacion
+from parser import AST_declaracion_variable as variable
 from parser import AST_asignacion as asignacion
-from parser import AST_expresion as expresion
-from parser import AST_decl_funcion as funcion
+from parser import AST_identificador as identificador
+from parser import AST_expresion_literal as literal
+from parser import AST_declaracion_funcion
 from parser import AST_comentario as comentario
 
 def id(s,i,f):
@@ -13,6 +14,12 @@ def id(s,i,f):
 
 def n(s,i,f):
   return t('NUMERO',s,i,f)
+
+def invocacion(funcion, argumentos=[]):
+  return AST_invocacion(funcion, argumentos)
+
+def funcion(nombre, parametros, cuerpo):
+  return AST_declaracion_funcion(nombre, parametros, cuerpo)
 
 def main():
   for test in casos_de_test:
@@ -87,7 +94,7 @@ casos_de_test = [
     t('SKIP','  ',1,8),
     n('5',1,10)
   ], [espacios('\t'),
-      variable('x',expresion('5'))
+      variable('x',literal('5'))
   ]),
   Test("Declaración y asignación de variable con strings",
     "const\tx;x =\n'2'x=\"true\"",[
@@ -104,8 +111,8 @@ casos_de_test = [
     t('ASIGNACION','=',2,16),
     t('STRING','"true"',2,17)
   ], [variable('x'),
-      asignacion('x',expresion("'2'")),
-      asignacion('x',expresion('"true"'))
+      asignacion('x',literal("'2'")),
+      asignacion('x',literal('"true"'))
   ]),
   Test("Declaración de función",
     "function HOLA() {x=2.5;let y = .66\t;}",[
@@ -130,9 +137,9 @@ casos_de_test = [
     t('SKIP','\t',1,34),
     t('PUNTO_Y_COMA',';',1,35),
     t('CIERRA_LLAVE','}',1,36)
-  ], [funcion('HOLA',[
-        asignacion('x',expresion('2.5')),
-        variable('y',expresion('.66'))
+  ], [funcion('HOLA',[],[
+        asignacion('x',literal('2.5')),
+        variable('y',literal('.66'))
     ])
   ]),
   Test("Comentarios",
@@ -152,12 +159,12 @@ casos_de_test = [
     t('SKIP','\n',9,45),
     t('COMENTARIO_ML','/*\n\nchau\n\n*/',10,46)
   ], [comentario('/**/'),
-      expresion('a'),
+      identificador('a'),
       comentario('// b '),
       comentario('// // hola /* */'),
-      expresion('a'),
+      identificador('a'),
       comentario('/*\n\nhola\n\n*/'),
-      expresion('a'),
+      identificador('a'),
       comentario('/*\n\nchau\n\n*/')
   ]),
   Test("Invocación a una función",
@@ -180,7 +187,7 @@ casos_de_test = [
     t('SKIP','  ',1,20),
     n('3',1,22),
     t('CIERRA_PAREN',')',1,23)
-  ], [invocacion('a.b.c', [expresion('5'),invocacion('chau'),expresion('3')])
+  ], [invocacion('a.b.c', [literal('5'),invocacion('chau'),literal('3')])
   ])
 ]
 

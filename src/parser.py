@@ -77,529 +77,681 @@ def token(tipo, valor, linea, pos):
   t.lexpos = pos
   return t
 
+def concatenar(a, b):
+  if type(a) != type([]):
+    a = [a]
+  if type(b) != type([]):
+    b = [b]
+  resultado = []
+  for x in a:
+    resultado.append(x)
+  for x in b:
+    resultado.append(x)
+  return resultado
+
 def p_error(p):
   print(f'Error en línea {p.lineno} {p.value!r}')
   exit(1)
 
+# PROGRAMA : [AST_nodo] #############################################################################
 ''' Un programa puede ser ...
-    P -> PU     una lista de declaraciones        p(D) U {.}  : ( AST_expresion
-                                                                | AST_invocacion
-                                                                | AST_asignacion
-                                                                | AST_decl_variable
-                                                                | AST_decl_funcion
-                                                                | AST_funcion
-                                                                | AST_comentario
-                                                                ):[ P ]
-    P -> SF PU  o empezar con skippeables antes   {skip}      : (AST_espacios):[ P ]
-'''
-def p_programa(p):
+    P -> PU     ... una lista de declaraciones      p(D) U {lambda}    : (AST_declaracion) : [ P ]
+    P -> SF PU  ... o empezar con skippeables antes {skip, comentario} : (AST_skippeable) : [ P ]
+''' #################################################################################################
+def p_programa_que_no_empieza_con_skip(p):
   '''
   programa : programa_util
-           | sf programa_util
   '''
-  p[0] = []
-  if len(p) == 3:
-    p[0] = p[2]
-    p[0].insert(0, p[1])
-  else:
-    p[0] = p[1]
+  p[0] = p[1]
 
+def p_programa_que_empieza_con_skip(p):
+  '''
+  programa : sf programa_util
+  '''
+  p[0] = concatenar(p[1], p[2])
+
+# PROGRAMA_ÚTIL : [AST_nodo] ########################################################################
 ''' Un programa útil es una lista de declaraciones (no puede empezar con skippeables)
-    PU -> .
-    PU -> D PU
-'''
-def p_programa_util(p):
+    PU -> lambda                                    {lambda}
+    PU -> D PU                                      p(D)
+''' #################################################################################################
+def p_programa_util_vacio(p):
   '''
   programa_util : vacio
-                | declaracion programa_util
   '''
   p[0] = []
-  if len(p) > 2:
-    p[0] = p[2]
-    p[0].insert(0, p[1])
 
+def p_programa_util_no_vacio(p):
+  '''
+  programa_util : declaracion programa_util
+  '''
+  p[0] = concatenar(p[1], p[2])
+
+# SKIPPEABLE_FORZADO : [AST_skippeable] #############################################################
+''' Un skippeable forzado debe tener al menos un skippeable y puede seguir con más skippeables
+    SF -> skip S       {skip}         : AST_espacios
+    SF -> comentario S {comentario}   : AST_comentario
+''' #################################################################################################
+def p_sf_espacios(p):
+  '''
+  sf : SKIP s
+  '''
+  p[0] = concatenar(AST_espacios(p[1]), p[2])
+
+def p_sf_comentario(p):
+  '''
+  sf : COMENTARIO_UL s
+     | COMENTARIO_ML s
+  '''
+  p[0] = concatenar(AST_comentario(p[1]), p[2])
+
+# SKIPPEABLE_OPCIONAL : [AST_skippeable] ############################################################
 ''' Un skippeable opcional puede ser ...
-    S -> .    vacío                           {.}     : None
-    S -> SF   o tener al menos un skippeable  {skip}  : AST_espacios
-'''
-def p_s(p):
+    S -> lambda   vacío                           {lambda}
+    S -> SF       o tener al menos un skippeable  {skip, comentario}
+''' #################################################################################################
+def p_skippeable_vacio(p):
   '''
   s : vacio
-    | sf
-  '''
-  p[0] = p[1]
-
-''' Un skippeable forzado debe tener al menos un skippeable
-    SF -> skip    {skip}    : AST_espacios
-'''
-def p_sf(p):
-  '''
-  sf : SKIP
-  '''
-  p[0] = AST_espacios(p[1])
-
-''' Una declaración debe contener algo válido (no puede empezar con skippeables). Puede ser ...
-    D -> CMD    un comando (sin function)     {id, num, string} : AST_expresion | AST_invocacion | AST_asignacion
-    D -> DVAR   una declaración de variable   {let, var, const} : AST_decl_variable
-    D -> DFUNC  una declaración de función    {function}        : AST_decl_funcion | AST_funcion
-    D -> REM    un comentario                 {// | /*}         : AST_comentario
-'''
-def p_declaracion(p):
-  '''
-  declaracion : comando
-              | decl_variable
-              | decl_funcion
-              | comentario
-  '''
-  p[0] = p[1]
-
-''' Un comando es una expresión (que no empiece con function) que puede tener un cierre (punto y coma y tal vez más skippeables)
-    CMD -> E OPT_CIERRE   p(E) : AST_expresion | AST_invocacion | AST_asignacion
-'''
-def p_comando(p):
-  '''
-  comando : expresion_no_function opt_cierre
-  '''
-  p[0] = p[1]
-  p[0].clausura(p[2])
-
-''' Una declaración de variable empieza con un declarador sigue con un identificador y puede tener más cosas
-    DVAR -> dvar id M   {dvar} : AST_decl_variable
-'''
-def p_declaracion_variable(p):
-  '''
-  decl_variable : DECL_VAR sf identificador_declarable opt_variable1
-  '''
-  cierre = None
-  s_init = None
-  s_val = None
-  init = p[4]
-  if not (init is None):
-    cierre = init[3]
-    s_val = init[2]
-    s_init = init[1]
-    init = init[0]
-  p[0] = AST_decl_variable(p[3], init, cierre, p[1], p[2], s_init, s_val)
-
-''' Al identificador de la variable declarada puede seguirle ...
-  M -> .    nada                                          {.}     : None
-  M -> M2   un modificador (cierre y/o asignación)        {; =}   : Lista de 4 (init, None, s_val, cierre)
-  M -> SF   al menos un espacio y después un modificador  {skip}  : Lista de 4 (init, s_init, s_val, cierre)
-'''
-def p_variable_opt1(p):
-  '''
-  opt_variable1 : vacio
-                | opt_variable2
-                | sf opt_variable2
-  '''
-  if p[1] is None:
-    p[0] = None
-  else:
-    opt2 = p[1]
-    s_init = None
-    s_val = None
-    if len(p) > 2:
-      opt2 = p[2]
-      s_init = p[1]
-    p[0] = (opt2[0], s_init, opt2[1], opt2[2])
-
-''' El modificador de la variable declarada puede ser ...
-  M2 -> OPT_CIERRE        un cierre                                       {;} : Lista de 3 (None, None, cierre)
-  M2 -> = S E OPT_CIERRE  una inicialización seguida (o no) de un cierre  {=} : Lista de 3 (init, s_val, cierre)
-'''
-def p_variable_opt2(p):
-  '''
-  opt_variable2 : cierre
-                | ASIGNACION s expresion opt_cierre
-  '''
-  cierre = p[1]
-  init = None
-  s_val = None
-  if len(p) > 2:
-    s_val = p[2]
-    init = p[3]
-    cierre = p[4]
-  p[0] = (init, s_val, cierre)
-
-def p_declaracion_funcion(p):
-  '''
-  decl_funcion : DECL_FUNC s funcion opt_invocacion opt_cierre
-  '''
-  if len(p[3]) == 6:
-    p[0] = AST_decl_funcion(p[3][0], p[3][1], p[3][2], p[2], p[3][3], p[3][4], p[3][5])
-  else:
-    p[0] = AST_funcion(p[3][0], p[3][1], p[2], p[3][2], p[3][3])
-    if not (p[4] is None):
-      p[0] = AST_invocacion(p[0], p[4][0], p[4][1], p[4][2], p[4][3])
-  if not (p[5] is None):
-    p[0].clausura(p[5])
-
-def p_funcion(p): # Lista de 6 si es una definición (id, params, cuerpo, s_id, s_abre, s_cierra) y de 4 si es una expresión (params, cuerpo, s_abre, s_cierra)
-  '''
-  funcion : funcion_no_decl
-          | IDENTIFICADOR s ABRE_PAREN s parametros CIERRA_PAREN s ABRE_LLAVE cuerpo CIERRA_LLAVE
-  '''
-  if len(p) == 2: # Es una expresión del tipo function(){}
-    p[0] = p[1]
-  else:           # es una definición
-    p[0] = (p[1], p[5], p[9], p[2], p[4], p[7])
-
-def p_funcion_no_decl(p): # Lista de 4 (parametros, cuerpo, s_abre, s_cierra)
-  '''
-  funcion_no_decl : ABRE_PAREN s parametros CIERRA_PAREN s ABRE_LLAVE cuerpo CIERRA_LLAVE
-  '''
-  p[0] = (p[3], p[7], p[2], p[5])
-
-def p_parametros(p): # Lista de identificadores
-  '''
-  parametros : vacio
-             | IDENTIFICADOR identificadores
-  '''
-  if len(p) == 2:
-    p[0] = []
-  else:
-    p[0] = [p[1] + p[2]]
-
-def p_cuerpo_funcion(p):
-  '''
-  cuerpo : cuerpo_util
-         | sf cuerpo_util
   '''
   p[0] = []
-  if len(p) == 3:
-    p[0] = p[2]
-    p[0].insert(0, p[1])
-  else:
-    p[0] = p[1]
 
-def p_cuerpo_funcion_util(p):
+def p_skippeable_no_vacio(p):
   '''
-  cuerpo_util : vacio
-              | declaracion cuerpo_util
+  s : sf
+  '''
+  p[0] = p[1]
+
+# DECLARACIÓN : AST_declaracion #####################################################################
+''' Una declaración debe contener algo válido (no puede empezar con skippeables). Para saber qué es, hay que ver cómo empieza.
+    D -> function       D_FUNCTION
+    D -> let|var|const  D_VAR
+    D -> id             D_ID
+    D -> num|string     D_LITERAL
+''' #################################################################################################
+
+# DECLARACIÓN : FUNCIÓN (declaración de función o función anónima)
+ #################################################################################################
+def p_declaracion_function(p): # AST_expresion_funcion | AST_declaracion_funcion | AST_invocacion
+  '''
+  declaracion : DECL_FUNC s declaracion_function
+  '''
+  declarador = AST_sintaxis(p[1])
+  s = concatenar(declarador, p[2])      # [AST_skippeable]
+  rec = p[3]                            # AST_expresion_funcion | AST_declaracion_funcion | AST_invocacion
+  rec.apertura(s)
+  p[0] = rec
+
+def p_declaracion_function_decl(p): # AST_declaracion_funcion
+  '''
+  declaracion_function : IDENTIFICADOR s definicion_funcion
+  '''
+  nombre = AST_identificador(p[1])
+  s = p[2]              # [AST_skippeable]
+  rec = p[3]            # AST_expresion_funcion | AST_invocacion
+  # Si la estoy declarando, no debería haber una invocación
+  if type(rec) is AST_invocacion:
+    print("ERROR p_declaracion_function_decl")
+    exit(0)
+  nombre.clausura(s)
+  p[0] = AST_declaracion_funcion(nombre, rec.parametros, rec.cuerpo)
+  p[0].imitarEspacios(rec)
+
+def p_declaracion_function_anon(p): # AST_expresion_funcion | AST_invocacion
+  '''
+  declaracion_function : definicion_funcion
+  '''
+  rec = p[1]            # AST_expresion_funcion | AST_invocacion
+  p[0] = rec
+
+def p_definicion_funcion(p): # AST_expresion_funcion | AST_invocacion
+  '''
+  definicion_funcion : parametros s cuerpo opt_modificador_funcion
+  '''
+  parametros = p[1]           # AST_parametros
+  s = p[2]                    # [AST_skippeable]
+  cuerpo = p[3]               # AST_cuerpo
+  modificador_funcion = p[4]  # AST_argumentos | [AST_skippeable]
+  parametros.clausura(s)
+  expresion = AST_expresion_funcion(parametros, cuerpo)
+  p[0] = aplicarModificadorFuncion(expresion, modificador_funcion)
+
+def p_opt_modificador_funcion_vacio(p): # [AST_skippeable]                      {lambda}
+  '''
+  opt_modificador_funcion : vacio
   '''
   p[0] = []
-  if len(p) > 2:
-    p[0] = p[2]
-    p[0].insert(0, p[1])
 
-def p_expresion(p): # AST_expresion | AST_invocacion | AST_asignacion | AST_funcion
+def p_opt_modificador_funcion_con_skip(p): # AST_argumentos | [AST_skippeable]  {skip, comentario}
   '''
-  expresion : DECL_FUNC sf funcion_no_decl opt_invocacion
-            | expresion_no_function
+  opt_modificador_funcion : sf modificador_funcion
   '''
-  if len(p) == 5: # Es una expresión del tipo function(){}
-    p[0] = AST_funcion(p[3][0], p[3][1], p[2], p[3][2], p[3][3])
-    if not (p[4] is None):
-      p[0] = AST_invocacion(p[0], p[4][0], p[4][1], p[4][2], p[4][3])
+  s = p[1]                          # [AST_skippeable]
+  modificador_funcion = p[2]        # AST_argumentos | [AST_skippeable]
+  if type(modificador_funcion) == type([]):
+    modificador_funcion[0].apertura(s)
   else:
-    p[0] = p[1]
+    modificador_funcion.apertura(s)
+  p[0] = modificador_funcion
 
+def p_opt_modificador_funcion_sin_skip(p): # AST_argumentos | [AST_skippeable]  {(, ;}
+  '''
+  opt_modificador_funcion : modificador_funcion
+  '''
+  modificador_funcion = p[1]    # AST_argumentos | [AST_skippeable]
+  p[0] = modificador_funcion
 
-def p_expresion_no_function(p): # AST_expresion | AST_invocacion | AST_asignacion
+def p_modificador_funcion_modificador_expresion(p): # AST_argumentos
   '''
-  expresion_no_function : expresion_sin_id
-                        | expresion_con_id
+  modificador_funcion : modificador_expresion
   '''
-  p[0] = p[1]
+  modificador_expresion = p[1]  # AST_argumentos
+  p[0] = modificador_expresion
 
-def p_expresion_sin_id(p):
+def p_modificador_funcion_cierre(p): # [AST_skippeable]
   '''
-  expresion_sin_id : NUMERO s
-                   | STRING s
+  modificador_funcion : cierre
   '''
-  p[0] = AST_expresion(p[1])
-  if len(p) > 2:
-    p[0].clausura(p[2])
+  cierre = p[1]                 # [AST_skippeable]
+  p[0] = cierre
 
-def p_expresion_con_id(p):
+def p_parametros(p): # AST_parametros
   '''
-  expresion_con_id : identificador_asignable opt_identificador1
+  parametros : ABRE_PAREN s identificadores CIERRA_PAREN
   '''
-  if (p[2] is None) or isinstance(p[2], AST_espacios):
-    p[0] = AST_expresion(p[1], p[2])
-  elif len(p[2]) == 4:
-    p[0] = AST_invocacion(p[1], p[2][0], p[2][3], p[2][1], p[2][2])
+  abre = AST_sintaxis(p[1])
+  s = concatenar(abre, p[2])  # [AST_skippeable]
+  parametros = p[3]           # [AST_identificador]
+  cierra = AST_sintaxis(p[4])
+  p[0] = AST_parametros(parametros)
+  p[0].apertura(s)
+  p[0].clausura(cierra)
+
+def p_cuerpo(p): # AST_cuerpo
+  '''
+  cuerpo : ABRE_LLAVE programa CIERRA_LLAVE
+  '''
+  abre = AST_sintaxis(p[1])
+  programa = p[2]               # [AST_nodo]
+  cierra = AST_sintaxis(p[3])
+  if len(programa) == 0:
+    programa = [abre]
   else:
-    p[0] = AST_asignacion(p[1], p[2][0], p[2][1], p[2][2])
+    programa[0].apertura(abre)
+  programa[-1].clausura(cierra)
+  p[0] = programa
 
-def p_opt_identificador1(p): # None, AST_espacios, lista de 3 (val, s_init, s_val) o lista de 4 (args, s_abre, s_cierra, s_fin)
-  '''
-  opt_identificador1 : vacio
-                     | sf opt_identificador2
-                     | opt_identificador3
-  '''
-  if p[1] is None:
-    p[0] = None
-  else:
-    s_1 = None
-    opt2 = p[1]
-    if len(p) > 2:
-      s_1 = p[1]
-      opt2 = p[2]
-    if opt2 is None:
-      p[0] = s_1
-    elif len(opt2) == 2:
-      p[0] = (opt2[0], s_1, opt2[1]) # es una asignación
-    else:
-      p[0] = (opt2[0], s_1, opt2[1], opt2[2]) # es una invocación
-
-def p_opt_identificador2(p): # None, lista de 3 (args, s_cierra, s_fin) o lista de 2 (val, s_val)
-  '''
-  opt_identificador2 : vacio
-                     | opt_identificador3
-  '''
-  p[0] = p[1]
-
-def p_opt_identificador3(p): # Lista de 3 (args, s_cierra, s_fin) o de 2 (val, s_val)
-  '''
-  opt_identificador3 : ABRE_PAREN s argumentos CIERRA_PAREN s
-                     | ASIGNACION s expresion
-  '''
-  if p[1] == '=':
-    p[0] = (p[3], p[2])
-  else:
-    p[0] = (p[3], p[2], p[5])
-
-def p_opt_invocacion(p): # None o lista de 3 (args, s_cierra, s_fin)
-  '''
-  opt_invocacion : vacio
-                 | s ABRE_PAREN s argumentos CIERRA_PAREN s
-  '''
-  if len(p) == 2:
-    p[0] = None
-  else:
-    p[0] = (p[4], p[6], p[1], p[3])
-
-def p_identificador_asignable(p): # AST_identificador
-  '''
-  identificador_asignable : IDENTIFICADOR opt_identificador_asignable
-  '''
-  p[0] = AST_identificador(p[1])
-  p[0].extender(p[2])
-
-def p_opt_identificador_asignable(p): # None o AST_identificador
-  '''
-  opt_identificador_asignable : vacio
-                              | PUNTO IDENTIFICADOR opt_identificador_asignable
-  '''
-  if p[1] is None:
-    p[0] = None
-  else:
-    p[0] = AST_identificador(p[2], 'PUNTO')
-    p[0].extender(p[3])
-
-def p_identificador_declarable(p): # AST_identificador
-  '''
-  identificador_declarable : IDENTIFICADOR
-                           | ABRE_LLAVE IDENTIFICADOR identificadores CIERRA_LLAVE
-  '''
-  if len(p) == 2:
-    p[0] = AST_identificador(p[1])
-  else:
-    p[0] = AST_identificador('{' + p[2] + p[3] + '}')
-
-def p_identificadores(p): # String
+def p_identificadores_vacio(p): # [AST_identificador]
   '''
   identificadores : vacio
-                  | COMA s IDENTIFICADOR identificadores
   '''
-  p[0] = ''
-  if len(p) > 2:
-    p[0] = ',' + str(p[2]) + p[3] + p[4]
+  p[0] = []
 
-def p_argumentos(p): # Lista de AST_expresion
+def p_identificadores_no_vacio(p): # [AST_identificador]
+  '''
+  identificadores : IDENTIFICADOR s mas_identificadores
+  '''
+  identificador = AST_identificador(p[1])
+  s = p[2]                  # [AST_skippeable]
+  rec = p[3]                # [AST_identificador]
+  identificador.clausura(s)
+  rec.insert(0, identificador)
+  p[0] = rec
+
+def p_mas_identificadores_fin(p): # [AST_identificador]
+  '''
+  mas_identificadores : vacio
+  '''
+  p[0] = []
+
+def p_mas_identificadores(p): # [AST_identificador]
+  '''
+  mas_identificadores : COMA s IDENTIFICADOR s mas_identificadores
+  '''
+  coma = AST_sintaxis(p[1])
+  s1 = concatenar(coma, p[2]) # [AST_skippeable]
+  identificador = AST_identificador(p[3])
+  s2 = p[4]                   # [AST_skippeable]
+  rec = p[3]                  # [AST_identificador]
+  identificador.apertura(s1)
+  identificador.clausura(s2)
+  rec.insert(0, identificador)
+  p[0] = rec
+
+# DECLARACIÓN : VARIABLE (declaración de variable)
+ #################################################################################################
+def p_declaracion_var(p): # AST_declaracion_variable
+  '''
+  declaracion : DECL_VAR sf IDENTIFICADOR opt_modificador_variable
+  '''
+  declarador = AST_sintaxis(p[1])
+  s = concatenar(declarador, p[2])  # [AST_skippeable]
+  nombre = AST_identificador(p[3])
+  modificador_variable = p[4]       # AST_expresion | [AST_skippeable]
+  decl_var = AST_declaracion_variable(nombre)
+  decl_var.apertura(s)
+  p[0] = aplicarModificadorVariable(decl_var, modificador_variable)
+
+def p_opt_modificador_variable_vacio(p): # [AST_skippeable]         {lambda}
+  '''
+  opt_modificador_variable : vacio
+  '''
+  p[0] = []
+
+def p_opt_modificador_variable_con_skip(p): # AST_expresion         {skip, comentario}
+  '''
+  opt_modificador_variable : sf modificador_variable
+  '''
+  s = p[1]                          # [AST_skippeable]
+  modificador_variable = p[2]       # AST_expresion | [AST_skippeable]
+  if type(modificador_variable) == type([]):
+    modificador_variable[0].apertura(s)
+  else:
+    modificador_variable.apertura(s)
+  p[0] = modificador_variable
+
+def p_opt_modificador_variable_sin_skip(p): # AST_expresion         {=, ;}
+  '''
+  opt_modificador_variable : modificador_variable
+  '''
+  modificador_variable = p[1]       # AST_expresion | [AST_skippeable]
+  p[0] = modificador_variable
+
+def p_modificador_variable_asignacion(p): # AST_expresion
+  '''
+  modificador_variable : asignacion
+  '''
+  asignacion = p[1]       # AST_expresion
+  p[0] = asignacion
+
+def p_modificador_variable_cierre(p): # [AST_skippeable]
+  '''
+  modificador_variable : cierre
+  '''
+  cierre = p[1]           # [AST_skippeable]
+  p[0] = cierre
+
+# DECLARACIÓN : IDENTIFICADOR (asignación o invocación)
+ #################################################################################################
+def p_declaracion_id(p): # AST_invocacion | AST_asignacion
+  '''
+  declaracion : IDENTIFICADOR opt_modificador_identificador
+  '''
+  identificador = AST_identificador(p[1])
+  modificador_identificador = p[2]      # AST_argumentos | AST_expresion | [AST_skippeable]
+  p[0] = aplicarModificadorIdentificador(identificador, modificador_identificador)
+
+def p_opt_modificador_identificador_vacio(p): # [AST_skippeable]         {lambda}
+  '''
+  opt_modificador_identificador : vacio
+  '''
+  p[0] = []
+
+def p_opt_modificador_identificador_con_skip(p): # AST_argumentos | AST_expresion         {skip, comentario}
+  '''
+  opt_modificador_identificador : sf modificador_identificador
+  '''
+  s = p[1]                          # [AST_skippeable]
+  modificador_identificador = p[2]       # AST_argumentos | AST_expresion | [AST_skippeable]
+  if type(modificador_identificador) == type([]):
+    modificador_identificador[0].apertura(s)
+  else:
+    modificador_identificador.apertura(s)
+  p[0] = modificador_identificador
+
+def p_opt_modificador_identificador_sin_skip(p): # AST_argumentos | AST_expresion         {=, (, ;}
+  '''
+  opt_modificador_identificador : modificador_identificador
+  '''
+  modificador_identificador = p[1]       # AST_argumentos | AST_expresion | [AST_skippeable]
+  p[0] = modificador_identificador
+
+def p_modificador_identificador_asignacion(p): # AST_expresion
+  '''
+  modificador_identificador : asignacion
+  '''
+  asignacion = p[1]       # AST_expresion
+  p[0] = asignacion
+
+def p_modificador_identificador_invocacion(p): # AST_argumentos
+  '''
+  modificador_identificador : invocacion
+  '''
+  invocacion = p[1]       # AST_argumentos
+  p[0] = invocacion
+
+def p_asignacion(p): # AST_expresion
+  '''
+  asignacion : ASIGNACION s expresion opt_modificador_asignacion
+  '''
+  asignacion = AST_sintaxis(p[1])
+  s = concatenar(asignacion, p[2])    # [AST_skippeable]
+  expresion = p[3]                    # AST_expresion
+  modificador_asignacion = p[4]       # [AST_skippeable]
+  expresion.apertura(s)
+  p[0] = aplicarModificadorAsignacion(expresion, modificador_asignacion)
+
+def p_opt_modificador_asignacion_vacio(p): # [AST_skippeable]             {lambda}
+  '''
+  opt_modificador_asignacion : vacio
+  '''
+  p[0] = []
+
+def p_opt_modificador_asignacion_con_skip(p): # [AST_skippeable]          {skip, comentario}
+  '''
+  opt_modificador_asignacion : sf modificador_asignacion
+  '''
+  s = p[1]                                      # [AST_skippeable]
+  modificador_asignacion = p[2]                 # [AST_skippeable]
+  if type(modificador_asignacion) == type([]):
+    modificador_asignacion[0].apertura(s)
+  else:
+    modificador_asignacion.apertura(s)
+  p[0] = modificador_asignacion
+
+def p_opt_modificador_asignacion_sin_skip(p): # [AST_skippeable]          {;}
+  '''
+  opt_modificador_asignacion : modificador_asignacion
+  '''
+  modificador_asignacion = p[1]                 # [AST_skippeable]
+  p[0] = modificador_asignacion
+
+def p_modificador_asignacion_cierre(p): # [AST_skippeable]
+  '''
+  modificador_asignacion : cierre
+  '''
+  cierre = p[1]                                 # [AST_skippeable]
+  p[0] = cierre
+
+def p_expresion_literal(p): # AST_expresion_literal
+  '''
+  expresion : NUMERO
+            | STRING
+  '''
+  p[0] = AST_expresion_literal(p[1])
+
+def p_expresion_identificador(p): # AST_expresion_identificador
+  '''
+  expresion : IDENTIFICADOR
+  '''
+  identificador = AST_identificador(p[1])
+  p[0] = AST_expresion_identificador(identificador)
+
+def p_modificador_expresion_invocacion(p): # AST_argumentos
+  '''
+  modificador_expresion : invocacion
+  '''
+  invocacion = p[1] # AST_argumentos
+  p[0] = invocacion
+
+def p_invocacion(p): # AST_argumentos
+  '''
+  invocacion : ABRE_PAREN s argumentos CIERRA_PAREN opt_cierre
+  '''
+  abre = AST_sintaxis(p[1])
+  s = concatenar(abre, p[2])  # [AST_skippeable]
+  argumentos = p[3]           # [AST_expresion]
+  cierra = AST_sintaxis(p[4])
+  opt_cierre = p[5]           # [AST_skippeable]
+  p[0] = AST_argumentos(argumentos)
+  p[0].apertura(s)
+  p[0].clausura(concatenar(cierra, opt_cierre))
+
+def p_argumentos_vacio(p): # [AST_expresion]
   '''
   argumentos : vacio
-             | mas_argumentos
   '''
-  if p[1] is None:
-    p[0] = []
-  else:
-    p[0] = p[1]
+  p[0] = []
 
-def p_opt_mas_argumentos(p): # Lista de AST_expresion (puede ser vacía)
+def p_argumentos_no_vacio(p): # [AST_expresion]
   '''
-  opt_mas_argumentos : vacio
-                     | COMA s mas_argumentos
+  argumentos : expresion s mas_argumentos
   '''
-  if p[1] is None:
-    p[0] = []
-  else:
-    p[0] = p[3]
-    p[0][0].apertura(p[2])
+  expresion = p[1]          # AST_expresion
+  s = p[2]                  # [AST_skippeable]
+  rec = p[3]                # [AST_expresion]
+  expresion.clausura(s)
+  rec.insert(0, expresion)
+  p[0] = rec
 
-def p_mas_argumentos(p): # Lista de AST_expresion (NO puede ser vacía)
+def p_mas_argumentos_fin(p): # [AST_expresion]
   '''
-  mas_argumentos : expresion opt_mas_argumentos
+  mas_argumentos : vacio
   '''
-  p[0] = p[2]
-  p[0].insert(0, p[1])
+  p[0] = []
 
-def p_comentario(p):
+def p_mas_argumentos(p): # [AST_expresion]
   '''
-  comentario : COMENTARIO_UL s
-             | COMENTARIO_ML s
+  mas_argumentos : COMA s expresion s mas_argumentos
   '''
-  p[0] = AST_comentario(p[1], p[2])
+  coma = AST_sintaxis(p[1])
+  s1 = concatenar(coma, p[2]) # [AST_skippeable]
+  expresion = p[3]            # AST_expresion
+  s2 = p[4]                   # [AST_skippeable]
+  rec = p[3]                  # [AST_expresion]
+  expresion.apertura(s1)
+  expresion.clausura(s2)
+  rec.insert(0, expresion)
+  p[0] = rec
 
-def p_vacio(p):
-  'vacio :'
-  p[0] = None
-
-def p_cierre(p):
+def p_cierre(p): # [AST_skippeable]
   '''
   cierre : PUNTO_Y_COMA s
   '''
-  p[0] = p[1] + restore(p[2])
+  punto_y_coma = AST_sintaxis(p[1])
+  cierre = p[2]                       # [AST_skippeable]
+  p[0] = concatenar(punto_y_coma, cierre)
 
-def p_opt_cierre(p):
+def p_opt_cierre(p): # [AST_skippeable]
   '''
   opt_cierre : cierre
              | vacio
   '''
   p[0] = p[1]
 
-class AST_nodo(object):
-  def __init__(self, cierre=None):
-    self.cierre = cierre
-    self.abre = None
-  def apertura(self, c):
-    self.abre = texto_con(self.abre, c)
-  def clausura(self, c):
-    self.cierre = texto_con(self.cierre, c)
-  def restore(self,contenido=''):
-    return f"{restore(self.abre)}{contenido}{restore(self.cierre)}"
+def p_vacio(p): # [AST_skippeable]
+  'vacio :'
+  p[0] = []
 
-class AST_espacios(AST_nodo):
+class AST_nodo(object):
+  def __init__(self):
+    self.cierra = []
+    self.abre = []
+  def imitarEspacios(self, otro):
+    self.abre = otro.abre + self.abre
+    self.cierra = self.cierra + otro.cierra
+  def apertura(self, c):
+    if c is None:
+      return
+    if type(c) != type([]):
+      c = [c]
+    for x in reversed(c):
+      self.abre.insert(0, x)
+  def clausura(self, c):
+    if c is None:
+      return
+    if type(c) != type([]):
+      c = [c]
+    for x in c:
+      self.cierra.append(x)
+  def restore(self,contenido=''):
+    return f"{''.join(map(restore, self.abre))}{contenido}{''.join(map(restore, self.cierra))}"
+
+class AST_skippeable(AST_nodo):
+  def __init__(self):
+    super().__init__()
+
+class AST_espacios(AST_skippeable):
   def __init__(self, espacios):
     super().__init__()
     self.espacios = espacios
   def __str__(self):
-    return self.espacios
+    return show(self.espacios)
   def restore(self):
-    return self.espacios
+    return super().restore(f"{self.espacios}")
 
-class AST_decl_variable(AST_nodo):
-  def __init__(self, variable, asignacion=None, cierre=None, decl='let', s_var=None, s_init=None, s_val=None):
-    super().__init__(cierre)
-    self.decl = decl
-    self.s_var = s_var
-    self.variable = variable
-    self.s_init = s_init
-    self.s_val = s_val
-    self.asignacion = asignacion
-  def __str__(self):
-    return f"Variable-{self.variable} : {show(self.asignacion)}"
-  def restore(self):
-    init = ''
-    if not (self.asignacion is None):
-      init = f"{restore(self.s_init)}={restore(self.s_val)}{restore(self.asignacion)}"
-    return f"{self.decl}{restore(self.s_var)}{self.variable}{init}{restore(self.cierre)}"
-
-class AST_decl_funcion(AST_nodo):
-  def __init__(self, funcion, parametros=[], cuerpo=None, s_id=None, s_abreParen=None, s_cierraParen=None, s_abreLlave=None):
-    self.s_id = s_id
-    self.funcion = funcion
-    self.s_abreParen = s_abreParen
-    self.s_cierraParen = s_cierraParen
-    self.s_abreLlave = s_abreLlave
-    self.parametros = parametros
-    self.cuerpo = cuerpo
+class AST_comentario(AST_skippeable):
+  def __init__(self, contenido):
     super().__init__()
-  def __str__(self):
-    cuerpo = '\n\t'.join(list(map(str, self.cuerpo)))
-    return f"Función-{self.funcion}\n\t{cuerpo}\n"
-  def restore(self):
-    cuerpo = "{" + ''.join(list(map(restore, self.cuerpo))) + "}"
-    return super().restore(f"function{restore(self.s_id)}{self.funcion}{restore(self.s_abreParen)}({restore(self.s_cierraParen)}{restore(self.parametros)}){restore(self.s_abreLlave)}{cuerpo}")
-
-class AST_funcion(AST_nodo):
-  def __init__(self, parametros=[], cuerpo=None, s_abreParen=None, s_cierraParen=None, s_abreLlave=None):
-    self.s_abreParen = s_abreParen
-    self.s_cierraParen = s_cierraParen
-    self.s_abreLlave = s_abreLlave
-    self.parametros = parametros
-    self.cuerpo = cuerpo
-    super().__init__()
-  def __str__(self):
-    return "Función"
-  def restore(self):
-    cuerpo = ''
-    if not (cuerpo is None):
-      cuerpo = "{" + ''.join(list(map(restore, self.cuerpo))) + "}"
-    return super().restore(f"function{restore(self.s_abreParen)}({restore(self.s_cierraParen)}{restore(self.parametros)}){restore(self.s_abreLlave)}{cuerpo}")
-
-class AST_invocacion(AST_nodo):
-  def __init__(self, invocacion, args=[], cierre=None, s_abreParen=None, s_cierraParen=None):
-    self.invocacion = invocacion
-    self.args = args
-    self.s_abreParen = s_abreParen
-    self.s_cierraParen = s_cierraParen
-    super().__init__(cierre)
-  def __str__(self):
-    return f"Invocación-{str(self.invocacion)} {show(self.args)}"
-  def restore(self):
-    return super().restore(f"{restore(self.invocacion)}{restore(self.s_abreParen)}({restore(self.s_cierraParen)}{restore(self.args)})")
-
-class AST_asignacion(AST_nodo):
-  def __init__(self, variable, expresion, s_init=None, s_val=None):
-    self.variable = variable
-    self.s_init = s_init
-    self.s_val = s_val
-    self.expresion = expresion
-    super().__init__()
-  def __str__(self):
-    return f"Asignación-{show(self.variable)} {show(self.expresion)}"
-  def restore(self):
-    return super().restore(f"{restore(self.variable)}{restore(self.s_init)}={restore(self.s_val)}{restore(self.expresion)}")
-
-class AST_identificador(AST_nodo):
-  def __init__(self, identificador, clase='ATOM'):
-    self.clase = clase
-    self.identificador = identificador
-    self.extension = None
-    super().__init__()
-  def extender(self, e):
-    self.extension = e
-  def __str__(self):
-    m = self.identificador
-    if self.clase == 'PUNTO':
-      m = '.' + m
-    if not (self.extension is None):
-      m += str(self.extension)
-    return m
-  def restore(self):
-    m = self.identificador
-    if self.clase == 'PUNTO':
-      m = '.' + m
-    if not (self.extension is None):
-      m += self.extension.restore()
-    return super().restore(f"{m}")
-
-class AST_expresion(AST_nodo):
-  def __init__(self, expresion, cierre=None):
-    self.expresion = expresion
-    super().__init__(cierre)
-  def __str__(self):
-    return f"Expresión-{self.expresion}"
-  def restore(self):
-    return super().restore(f"{self.expresion}")
-
-class AST_comentario(AST_nodo):
-  def __init__(self, contenido, cierre=None):
     self.contenido = contenido
-    super().__init__(cierre)
   def __str__(self):
-    return f"Comentario-{self.contenido}"
+    return f"Comentario: {show(self.contenido)}"
   def restore(self):
     return super().restore(f"{self.contenido}")
+
+class AST_sintaxis(AST_skippeable):
+  def __init__(self, contenido):
+    super().__init__()
+    self.contenido = contenido
+  def __str__(self):
+    return f"Sintaxis: {show(self.contenido)}"
+  def restore(self):
+    return super().restore(f"{self.contenido}")
+
+class AST_declaracion(AST_nodo):
+  def __init__(self):
+    super().__init__()
+
+class AST_declaracion_funcion(AST_declaracion):
+  def __init__(self, nombre, parametros, cuerpo):
+    super().__init__()
+    self.nombre = nombre          # AST_identificador
+    self.parametros = parametros  # AST_parametros
+    self.cuerpo = cuerpo          # AST_cuerpo
+  def __str__(self):
+    return f"DeclaraciónFunción : {show(self.nombre)}"
+  def restore(self):
+    return super().restore(f"{restore(self.nombre)}{restore(self.parametros)}{restore(self.cuerpo)}")
+
+class AST_expresion(AST_declaracion):
+  def __init__(self):
+    super().__init__()
+
+class AST_expresion_literal(AST_expresion):
+  def __init__(self, literal):
+    super().__init__()
+    self.literal = literal        # String
+  def __str__(self):
+    return f"{show(self.literal)}"
+  def restore(self):
+    return super().restore(f"{restore(self.literal)}")
+
+class AST_expresion_identificador(AST_expresion):
+  def __init__(self, identificador):
+    super().__init__()
+    self.identificador = identificador    # AST_identificador
+  def __str__(self):
+    return f"{show(self.identificador)}"
+  def restore(self):
+    return super().restore(f"{restore(self.identificador)}")
+
+class AST_expresion_funcion(AST_expresion):
+  def __init__(self, parametros, cuerpo):
+    super().__init__()
+    self.parametros = parametros  # AST_parametros
+    self.cuerpo = cuerpo          # AST_cuerpo
+  def __str__(self):
+    return f"FunciónAnónima"
+  def restore(self):
+    return super().restore(f"{restore(self.parametros)}{restore(self.cuerpo)}")
+
+class AST_declaracion_variable(AST_declaracion):
+  def __init__(self, nombre, asignacion=None):
+    super().__init__()
+    self.nombre = nombre          # AST_identificador
+    self.asignacion = asignacion  # AST_expresion
+  def __str__(self):
+    return f"DeclaraciónVariable : {show(self.nombre)}"
+  def restore(self):
+    return super().restore(f"{restore(self.nombre)}{restore(self.asignacion)}")
+
+class AST_invocacion(AST_declaracion):
+  def __init__(self, funcion, argumentos):
+    super().__init__()
+    self.funcion = funcion        # AST_identificador | AST_expresion_funcion
+    self.argumentos = argumentos  # AST_argumentos
+  def __str__(self):
+    return f"Invocacion : {show(self.funcion)}"
+  def restore(self):
+    return super().restore(f"{restore(self.funcion)}{restore(self.argumentos)}")
+
+class AST_asignacion(AST_declaracion):
+  def __init__(self, asignable, valor):
+    super().__init__()
+    self.asignable = asignable    # AST_asignable
+    self.valor = valor            # AST_expresion
+  def __str__(self):
+    return f"Asignación : {show(self.asignable)} = {show(self.valor)}"
+  def restore(self):
+    return super().restore(f"{restore(self.asignable)}{restore(self.valor)}")
+
+class AST_parametros(AST_declaracion):
+  def __init__(self, parametros):
+    super().__init__()
+    self.parametros = parametros  # [AST_identificador]
+  def __str__(self):
+    return f"Parámetros : {show(self.parametros)}"
+  def restore(self):
+    return super().restore(f"{restore(self.parametros)}")
+
+class AST_argumentos(AST_declaracion):
+  def __init__(self, argumentos):
+    super().__init__()
+    self.argumentos = argumentos  # [AST_expresion]
+  def __str__(self):
+    return f"Argumentos : {show(self.argumentos)}"
+  def restore(self):
+    return super().restore(f"{restore(self.argumentos)}")
+
+class AST_asignable(AST_declaracion):
+  def __init__(self):
+    super().__init__()
+
+class AST_identificador(AST_asignable):
+  def __init__(self, identificador):
+    super().__init__()
+    self.identificador = identificador    # String
+  def __str__(self):
+    return f"{self.identificador}"
+  def restore(self):
+    return super().restore(f"{self.identificador}")
+
+def aplicarModificadorVariable(decl_var, mod):
+  if type(mod) is AST_expresion:
+    decl_var.asignacion = mod
+  else: # [AST_skippeable]
+    decl_var.clausura(mod)
+  return decl_var
+
+def aplicarModificadorFuncion(func, mod):
+  if type(mod) is AST_argumentos:
+    return AST_invocacion(func, mod)
+  else: # [AST_skippeable]
+    func.clausura(mod)
+    return func
+
+def aplicarModificadorIdentificador(id, mod):
+  if type(mod) is AST_argumentos:
+    return AST_invocacion(id, mod)
+  elif isinstance(mod, AST_expresion):
+    return AST_asignacion(id, mod)
+  else: # [AST_skippeable]
+    id.clausura(mod)
+    return id
+
+def aplicarModificadorAsignacion(asignacion, mod):
+  if False:
+    pass
+  else: # [AST_skippeable]
+    asignacion.clausura(mod)
+    return asignacion
 
 def show(x):
   if x is None:
     return ''
   if type(x) == type([]):
     return f"[{' '.join(list(map(show,x)))}]"
-  return str(x)
+  return str(x).replace('\n','\\n').replace('\t','\\t').replace('\r','\\r')
 
 def restore(x):
   if x is None:
@@ -609,14 +761,6 @@ def restore(x):
   if type(x) == type([]):
     return ','.join(list(map(restore,x)))
   return x.restore()
-
-def texto_con(s1, s2):
-  s = ''
-  if not (s1 is None):
-    s += restore(s1)
-  if not (s2 is None):
-    s += restore(s2)
-  return s
 
 parser = yacc()
 
