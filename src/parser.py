@@ -14,6 +14,8 @@ tokens = (
   'CIERRA_PAREN',
   'ABRE_LLAVE',
   'CIERRA_LLAVE',
+  'ABRE_CORCHETE',
+  'CIERRA_CORCHETE',
   'PUNTO_Y_COMA',
   'PUNTO',
   'COMA',
@@ -44,6 +46,8 @@ t_ABRE_PAREN = r'\('
 t_CIERRA_PAREN = r'\)'
 t_ABRE_LLAVE = r'{'
 t_CIERRA_LLAVE = r'}'
+t_ABRE_CORCHETE = r'\['
+t_CIERRA_CORCHETE = r'\]'
 t_PUNTO_Y_COMA = r';'
 t_PUNTO = r'\.'
 t_COMA = r','
@@ -164,10 +168,10 @@ def p_skippeable_no_vacio(p):
 
 # DECLARACIÓN : AST_declaracion #####################################################################
 ''' Una declaración debe contener algo válido (no puede empezar con skippeables). Para saber qué es, hay que ver cómo empieza.
-    D -> function       D_FUNCTION
-    D -> let|var|const  D_VAR
-    D -> id             D_ID
-    D -> num|string     D_LITERAL
+    D -> function       D_FUNCTION    AST_expresion_funcion | AST_declaracion_funcion | AST_invocacion
+    D -> let|var|const  D_VAR         AST_declaracion_variable
+    D -> id             D_ID          AST_invocacion | AST_asignacion | AST_identificador | AST_acceso | AST_index
+    D -> num|string     D_LITERAL     ¡TODO!
 ''' #################################################################################################
 
 # DECLARACIÓN : FUNCIÓN (declaración de función o función anónima)
@@ -373,12 +377,12 @@ def p_modificador_variable_cierre(p): # [AST_skippeable]
 
 # DECLARACIÓN : IDENTIFICADOR (asignación o invocación)
  #################################################################################################
-def p_declaracion_id(p): # AST_invocacion | AST_asignacion | AST_identificador
+def p_declaracion_id(p): # AST_invocacion | AST_asignacion | AST_identificador | AST_acceso | AST_index
   '''
   declaracion : IDENTIFICADOR opt_modificador_identificador
   '''
   identificador = AST_identificador(p[1])
-  modificador_identificador = p[2]      # AST_argumentos | AST_expresion | [AST_skippeable]
+  modificador_identificador = p[2]      # AST_argumentos | AST_expresion | AST_modificador_objeto | [AST_skippeable]
   p[0] = aplicarModificadorIdentificador(identificador, modificador_identificador)
 
 def p_opt_modificador_identificador_vacio(p): # [AST_skippeable]         {lambda}
@@ -435,6 +439,35 @@ def p_modificador_identificador_invocacion(p): # AST_argumentos
   '''
   invocacion = p[1]       # AST_argumentos
   p[0] = invocacion
+
+def p_modificador_identificador_modificador_objeto(p): # AST_modificador_objeto
+  '''
+  modificador_identificador : modificador_objeto
+  '''
+  modificador_objeto = p[1]       # AST_modificador_objeto
+  p[0] = modificador_objeto
+
+def p_modificador_objeto_acceso(p): # AST_modificador_objeto_acceso
+  '''
+  modificador_objeto : PUNTO s IDENTIFICADOR
+  '''
+  punto = AST_sintaxis(p[1])
+  s = concatenar(punto, p[2])       # [AST_skippeable]
+  campo = AST_identificador(p[3])   # AST_identificador
+  p[0] = AST_modificador_objeto_acceso(campo)
+  p[0].apertura(s)
+
+def p_modificador_objeto_index(p): # AST_modificador_objeto_index
+  '''
+  modificador_objeto : ABRE_CORCHETE s expresion CIERRA_CORCHETE
+  '''
+  abre = AST_sintaxis(p[1])
+  s = concatenar(abre, p[2])  # [AST_skippeable]
+  indice = p[3]               # AST_expresion
+  cierra = AST_sintaxis(p[4])
+  p[0] = AST_modificador_objeto_index(indice)
+  p[0].apertura(s)
+  p[0].clausura(cierra)
 
 def p_asignacion(p): # AST_expresion
   '''
@@ -701,6 +734,28 @@ class AST_asignacion(AST_declaracion):
   def restore(self):
     return super().restore(f"{restore(self.asignable)}{restore(self.valor)}")
 
+class AST_acceso(AST_declaracion):
+  def __init__(self, asignable, modificador_campo):
+    super().__init__()
+    self.asignable = asignable        # AST_asignable
+    self.campo = modificador_campo    # AST_identificador
+    self.campo.imitarEspacios(modificador_campo)
+  def __str__(self):
+    return f"Acceso : {show(self.asignable)}.{show(self.campo)}"
+  def restore(self):
+    return super().restore(f"{restore(self.asignable)}{restore(self.campo)}")
+
+class AST_index(AST_declaracion):
+  def __init__(self, asignable, modificador_indice):
+    super().__init__()
+    self.asignable = asignable                # AST_asignable
+    self.indice = modificador_indice.indice   # AST_expresion
+    self.indice.imitarEspacios(modificador_indice)
+  def __str__(self):
+    return f"Acceso : {show(self.asignable)}[{show(self.indice)}]"
+  def restore(self):
+    return super().restore(f"{restore(self.asignable)}{restore(self.indice)}")
+
 class AST_parametros(AST_declaracion):
   def __init__(self, parametros):
     super().__init__()
@@ -732,6 +787,20 @@ class AST_identificador(AST_asignable):
   def restore(self):
     return super().restore(f"{self.identificador}")
 
+class AST_modificador_objeto(AST_declaracion):
+  def __init__(self):
+    super().__init__()
+
+class AST_modificador_objeto_acceso(AST_modificador_objeto):
+  def __init__(self, identificador):
+    super().__init__()
+    self.campo = identificador    # AST_identificador
+
+class AST_modificador_objeto_index(AST_modificador_objeto):
+  def __init__(self, expresion):
+    super().__init__()
+    self.indice = expresion       # AST_expresion
+
 def aplicarModificadorVariable(decl_var, mod):
   if type(mod) is AST_expresion:
     decl_var.asignacion = mod
@@ -749,6 +818,11 @@ def aplicarModificadorFuncion(func, mod):
 def aplicarModificadorIdentificador(id, mod):
   if type(mod) is AST_argumentos:
     return AST_invocacion(id, mod)
+  if isinstance(mod, AST_modificador_objeto):
+    if type(mod) is AST_modificador_objeto_acceso:
+      return AST_acceso(id, mod)
+    if type(mod) is AST_modificador_objeto_index:
+      return AST_index(id, mod)
   elif isinstance(mod, AST_expresion):
     return AST_asignacion(id, mod)
   else: # [AST_skippeable]
