@@ -577,18 +577,6 @@ def p_modificador_expresion_invocacion(p): # AST_argumentos
   invocacion = p[1] # AST_argumentos
   p[0] = invocacion
 
-def p_invocacion(p): # AST_argumentos
-  '''
-  invocacion : ABRE_PAREN s argumentos CIERRA_PAREN
-  '''
-  abre = AST_sintaxis(p[1])
-  s = concatenar(abre, p[2])  # [AST_skippeable]
-  argumentos = p[3]           # [AST_expresion]
-  cierra = AST_sintaxis(p[4])
-  p[0] = AST_argumentos(argumentos)
-  p[0].apertura(s)
-  p[0].clausura(cierra)
-
 def p_invocacion_comando(p): # AST_argumentos
   '''
   invocacion_comando : invocacion opt_cierre
@@ -598,26 +586,49 @@ def p_invocacion_comando(p): # AST_argumentos
   p[0] = invocacion
   p[0].clausura(opt_cierre)
 
-def p_argumentos_vacio(p): # [AST_expresion]
+def p_invocacion(p): # AST_argumentos
   '''
-  argumentos : vacio
+  invocacion : ABRE_PAREN s argumentos
   '''
-  p[0] = []
+  abre = AST_sintaxis(p[1])
+  s = concatenar(abre, p[2])  # [AST_skippeable]
+  argumentos = p[3]           # [AST_expresion] | AST_sintaxis
+  cierra = None
+  if type(argumentos) != type([]):
+    cierra = argumentos
+    argumentos = []
+  p[0] = AST_argumentos(argumentos)
+  p[0].apertura(s)
+  p[0].clausura(cierra)
+
+def p_argumentos_vacio(p): # AST_sintaxis
+  '''
+  argumentos : CIERRA_PAREN
+  '''
+  cierra = AST_sintaxis(p[1])
+  p[0] = cierra
 
 def p_argumentos_no_vacio(p): # [AST_expresion]
   '''
   argumentos : expresion mas_argumentos
   '''
   expresion = p[1]          # AST_expresion
-  rec = p[2]                # [AST_expresion]
-  rec.insert(0, expresion)
+  rec = p[2]                # [AST_expresion] | AST_sintaxis
+  cierra = None
+  if type(rec) != type([]):
+    cierra = rec
+    expresion.clausura(cierra)
+    rec = [expresion]
+  else:
+    rec.insert(0, expresion)
   p[0] = rec
 
-def p_mas_argumentos_fin(p): # [AST_expresion]
+def p_mas_argumentos_fin(p): # AST_sintaxis
   '''
-  mas_argumentos : vacio
+  mas_argumentos : CIERRA_PAREN
   '''
-  p[0] = []
+  cierra = AST_sintaxis(p[1])
+  p[0] = cierra
 
 def p_mas_argumentos(p): # [AST_expresion]
   '''
@@ -626,9 +637,15 @@ def p_mas_argumentos(p): # [AST_expresion]
   coma = AST_sintaxis(p[1])
   s = concatenar(coma, p[2])  # [AST_skippeable]
   expresion = p[3]            # AST_expresion
-  rec = p[4]                  # [AST_expresion]
+  rec = p[4]                  # [AST_expresion] | AST_sintaxis
+  cierra = None
+  if type(rec) != type([]):
+    cierra = rec
+    expresion.clausura(cierra)
+    rec = [expresion]
+  else:
+    rec.insert(0, expresion)
   expresion.apertura(s)
-  rec.insert(0, expresion)
   p[0] = rec
 
 def p_cierre(p): # [AST_skippeable]
