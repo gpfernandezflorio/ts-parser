@@ -5,10 +5,14 @@ from parser import AST_espacios as espacios
 from parser import AST_invocacion
 from parser import AST_declaracion_variable as variable
 from parser import AST_asignacion as asignacion
+from parser import AST_acceso
+from parser import AST_index
 from parser import AST_identificador as identificador
 from parser import AST_expresion_literal as literal
 from parser import AST_declaracion_funcion
 from parser import AST_comentario as comentario
+from parser import AST_modificador_objeto_acceso
+from parser import AST_modificador_objeto_index
 
 def id(s,i,f):
   return t('IDENTIFICADOR',s,i,f)
@@ -21,6 +25,12 @@ def invocacion(funcion, argumentos=[]):
 
 def funcion(nombre, parametros, cuerpo):
   return AST_declaracion_funcion(nombre, parametros, cuerpo)
+
+def acceso(objeto, campo):
+  return AST_acceso(objeto, AST_modificador_objeto_acceso(identificador(campo)))
+
+def index(objeto, indice):
+  return AST_index(objeto, AST_modificador_objeto_index(literal(indice)))
 
 def main():
   if len(sys.argv) > 1:
@@ -182,27 +192,41 @@ casos_de_test = [
       # comentario('/*\n\nchau\n\n*/')
   ]),
   Test("Invocación a una función",
-    "a.b.c(5, chau(  )  ,  3)",[
+    "a(5, chau(  ),  3)",[
     id('a',1,0),
-    t('PUNTO','.',1,1),
-    id('b',1,2),
-    t('PUNTO','.',1,3),
-    id('c',1,4),
-    t('ABRE_PAREN','(',1,5),
-    n('5',1,6),
-    t('COMA',',',1,7),
-    t('SKIP',' ',1,8),
-    id('chau',1,9),
-    t('ABRE_PAREN','(',1,13),
+    t('ABRE_PAREN','(',1,1),
+    n('5',1,2),
+    t('COMA',',',1,3),
+    t('SKIP',' ',1,4),
+    id('chau',1,5),
+    t('ABRE_PAREN','(',1,9),
+    t('SKIP','  ',1,10),
+    t('CIERRA_PAREN',')',1,12),
+    t('COMA',',',1,13),
     t('SKIP','  ',1,14),
-    t('CIERRA_PAREN',')',1,16),
-    t('SKIP','  ',1,17),
-    t('COMA',',',1,19),
-    t('SKIP','  ',1,20),
-    n('3',1,22),
-    t('CIERRA_PAREN',')',1,23)
-  ], [invocacion('a.b.c', [literal('5'),invocacion('chau'),literal('3')])
-  ])
+    n('3',1,16),
+    t('CIERRA_PAREN',')',1,17)
+  ], [invocacion('a', [literal('5'),invocacion('chau'),literal('3')])
+  ]),
+  Test("Acceso a objetos",
+    "a.b;a[1];b[a]",[
+      id('a',1,0),
+      t('PUNTO','.',1,1),
+      id('b',1,2),
+      t('PUNTO_Y_COMA',';',1,3),
+      id('a',1,4),
+      t('ABRE_CORCHETE','[',1,5),
+      n('1',1,6),
+      t('CIERRA_CORCHETE',']',1,7),
+      t('PUNTO_Y_COMA',';',1,8),
+      id('b',1,9),
+      t('ABRE_CORCHETE','[',1,10),
+      id('a',1,11),
+      t('CIERRA_CORCHETE',']',1,12)
+  ], [acceso('a','b'),
+      index('a','1'),
+      index('b','a')
+  ]),
 ]
 
 def evaluar(test):
