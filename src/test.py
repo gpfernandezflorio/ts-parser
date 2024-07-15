@@ -227,6 +227,56 @@ casos_de_test = [
       index('a','1'),
       index('b','a')
   ]),
+  Test("Combinación objetos y funciones",
+    "a.b.c()().c(c[3].b[a()[b]()][2])",[
+    id('a',1,0),
+    t('PUNTO','.',1,1),
+    id('b',1,2),
+    t('PUNTO','.',1,3),
+    id('c',1,4),
+    t('ABRE_PAREN','(',1,5),
+    t('CIERRA_PAREN',')',1,6),
+    t('ABRE_PAREN','(',1,7),
+    t('CIERRA_PAREN',')',1,8),
+    t('PUNTO','.',1,9),
+    id('c',1,10),
+    t('ABRE_PAREN','(',1,11),
+    id('c',1,12),
+    t('ABRE_CORCHETE','[',1,13),
+    n('3',1,14),
+    t('CIERRA_CORCHETE',']',1,15),
+    t('PUNTO','.',1,16),
+    id('b',1,17),
+    t('ABRE_CORCHETE','[',1,18),
+    id('a',1,19),
+    t('ABRE_PAREN','(',1,20),
+    t('CIERRA_PAREN',')',1,21),
+    t('ABRE_CORCHETE','[',1,22),
+    id('b',1,23),
+    t('CIERRA_CORCHETE',']',1,24),
+    t('ABRE_PAREN','(',1,25),
+    t('CIERRA_PAREN',')',1,26),
+    t('CIERRA_CORCHETE',']',1,27),
+    t('ABRE_CORCHETE','[',1,28),
+    n('2',1,29),
+    t('CIERRA_CORCHETE',']',1,30),
+    t('CIERRA_PAREN',')',1,31)
+  ], [
+    invocacion(
+      acceso(
+        invocacion(invocacion(
+          acceso(acceso('a','b'),'c')
+        )),
+        'c'
+      ),
+      [
+        index(index(
+          acceso(index('c','3'),'b'),
+          invocacion(index(invocacion('a'),'b'))
+        ),'2')
+      ]
+    )
+  ])
 ]
 
 def evaluar(test):

@@ -412,6 +412,13 @@ def p_modificador_identificador_vacio(p): # [AST_skippeable]
   '''
   p[0] = []
 
+def p_modificador_identificador_cierre(p): # [AST_skippeable]
+  '''
+  modificador_identificador_o_nada : cierre
+  '''
+  cierre = p[1]                                 # [AST_skippeable]
+  p[0] = cierre
+
 def p_modificador_identificador_algo(p): # AST_argumentos | AST_expresion | AST_modificador_objeto
   '''
   modificador_identificador_o_nada : modificador_identificador
@@ -452,31 +459,41 @@ def p_modificador_identificador_modificador_objeto_comando(p): # AST_modificador
   modificador_objeto_comando : modificador_objeto opt_cierre
   '''
   modificador_objeto = p[1]       # AST_modificador_objeto
-  opt_cierre = p[2]     # [AST_skippeable]
+  opt_cierre = p[2]               # [AST_skippeable]
   p[0] = modificador_objeto
   p[0].clausura(opt_cierre)
 
 def p_modificador_objeto_acceso(p): # AST_modificador_objeto_acceso
   '''
-  modificador_objeto : PUNTO s IDENTIFICADOR
+  modificador_objeto : PUNTO s IDENTIFICADOR opt_modificador_expresion
   '''
   punto = AST_sintaxis(p[1])
   s = concatenar(punto, p[2])       # [AST_skippeable]
   campo = AST_identificador(p[3])   # AST_identificador
+  opt_adicional = p[4]              # [AST_skippeable] | AST_modificador_objeto
   p[0] = AST_modificador_objeto_acceso(campo)
   p[0].apertura(s)
+  if type(opt_adicional) == type([]):
+    p[0].clausura(opt_adicional)
+  else:
+    p[0].modificador_adicional(opt_adicional)
 
 def p_modificador_objeto_index(p): # AST_modificador_objeto_index
   '''
-  modificador_objeto : ABRE_CORCHETE s expresion CIERRA_CORCHETE
+  modificador_objeto : ABRE_CORCHETE s expresion CIERRA_CORCHETE opt_modificador_expresion
   '''
   abre = AST_sintaxis(p[1])
   s = concatenar(abre, p[2])  # [AST_skippeable]
   indice = p[3]               # AST_expresion
   cierra = AST_sintaxis(p[4])
+  opt_adicional = p[5]        # [AST_skippeable] | AST_modificador_objeto
   p[0] = AST_modificador_objeto_index(indice)
   p[0].apertura(s)
   p[0].clausura(cierra)
+  if type(opt_adicional) == type([]):
+    p[0].clausura(opt_adicional)
+  else:
+    p[0].modificador_adicional(opt_adicional)
 
 def p_asignacion(p): # AST_expresion
   '''
@@ -592,61 +609,74 @@ def p_invocacion(p): # AST_argumentos
   '''
   abre = AST_sintaxis(p[1])
   s = concatenar(abre, p[2])  # [AST_skippeable]
-  argumentos = p[3]           # [AST_expresion] | AST_sintaxis
-  cierra = None
-  if type(argumentos) != type([]):
-    cierra = argumentos
-    argumentos = []
-  p[0] = AST_argumentos(argumentos)
-  p[0].apertura(s)
-  p[0].clausura(cierra)
+  argumentos = p[3]           # AST_argumentos
+  argumentos.apertura(s)
+  argumentos.clausura(')')
+  p[0] = argumentos
 
-def p_argumentos_vacio(p): # AST_sintaxis
+def p_argumentos_vacio(p): # AST_argumentos
   '''
-  argumentos : CIERRA_PAREN
+  argumentos : fin_argumentos
   '''
-  cierra = AST_sintaxis(p[1])
-  p[0] = cierra
+  fin_argumentos = p[1]
+  p[0] = fin_argumentos
 
-def p_argumentos_no_vacio(p): # [AST_expresion]
+def p_argumentos_no_vacio(p): # AST_argumentos
   '''
   argumentos : expresion mas_argumentos
   '''
   expresion = p[1]          # AST_expresion
-  rec = p[2]                # [AST_expresion] | AST_sintaxis
-  cierra = None
-  if type(rec) != type([]):
-    cierra = rec
-    expresion.clausura(cierra)
-    rec = [expresion]
-  else:
-    rec.insert(0, expresion)
-  p[0] = rec
+  argumentos = p[2]         # AST_argumentos
+  argumentos.agregar_argumento(expresion)
+  p[0] = argumentos
 
-def p_mas_argumentos_fin(p): # AST_sintaxis
+def p_mas_argumentos_fin(p): # AST_argumentos
   '''
-  mas_argumentos : CIERRA_PAREN
+  mas_argumentos : fin_argumentos
   '''
-  cierra = AST_sintaxis(p[1])
-  p[0] = cierra
+  fin_argumentos = p[1]
+  p[0] = fin_argumentos
 
-def p_mas_argumentos(p): # [AST_expresion]
+def p_mas_argumentos(p): # AST_argumentos
   '''
   mas_argumentos : COMA s expresion mas_argumentos
   '''
   coma = AST_sintaxis(p[1])
   s = concatenar(coma, p[2])  # [AST_skippeable]
   expresion = p[3]            # AST_expresion
-  rec = p[4]                  # [AST_expresion] | AST_sintaxis
-  cierra = None
-  if type(rec) != type([]):
-    cierra = rec
-    expresion.clausura(cierra)
-    rec = [expresion]
-  else:
-    rec.insert(0, expresion)
+  argumentos = p[4]               # AST_argumentos
   expresion.apertura(s)
-  p[0] = rec
+  argumentos.agregar_argumento(expresion)
+  p[0] = argumentos
+
+def p_fin_argumentos(p): # AST_argumentos
+  '''
+  fin_argumentos : CIERRA_PAREN opt_modificador_invocacion
+  '''
+  cierra = AST_sintaxis(p[1])
+  opt_adicional = p[2]
+  p[0] = AST_argumentos()
+  p[0].modificador_adicional(opt_adicional)
+
+def p_opt_modificador_invocacion_vacio(p): # [AST_skippeable]
+  '''
+  opt_modificador_invocacion : vacio
+  '''
+  p[0] = []
+
+def p_opt_modificador_invocacion_invocacion(p): # AST_argumentos
+  '''
+  opt_modificador_invocacion : invocacion
+  '''
+  invocacion = p[1]
+  p[0] = invocacion
+
+def p_opt_modificador_invocacion_objeto(p): # AST_modificador_objeto
+  '''
+  opt_modificador_invocacion : modificador_objeto
+  '''
+  modificador_objeto = p[1]
+  p[0] = modificador_objeto
 
 def p_cierre(p): # [AST_skippeable]
   '''
@@ -726,6 +756,13 @@ class AST_declaracion(AST_nodo):
   def __init__(self):
     super().__init__()
 
+class AST_modificador(AST_nodo):
+  def __init__(self):
+    super().__init__()
+    self.adicional = None
+  def modificador_adicional(self, otro):
+    self.adicional = otro
+
 class AST_declaracion_funcion(AST_declaracion):
   def __init__(self, nombre, parametros, cuerpo):
     super().__init__()
@@ -785,7 +822,8 @@ class AST_invocacion(AST_declaracion):
     self.funcion = funcion        # AST_identificador | AST_expresion_funcion
     self.argumentos = argumentos  # AST_argumentos
   def __str__(self):
-    return f"Invocacion : {show(self.funcion)}"
+    args = '' if cantidad(self.argumentos) == 0 else f" con {show(self.argumentos)}"
+    return f"Invocacion : {show(self.funcion)}{args}"
   def restore(self):
     return super().restore(f"{restore(self.funcion)}{restore(self.argumentos)}")
 
@@ -830,14 +868,18 @@ class AST_parametros(AST_declaracion):
   def restore(self):
     return super().restore(f"{''.join(map(restore, self.parametros))}")
 
-class AST_argumentos(AST_declaracion):
-  def __init__(self, argumentos):
+class AST_argumentos(AST_modificador):
+  def __init__(self):
     super().__init__()
-    self.argumentos = argumentos  # [AST_expresion]
+    self.lista = []  # [AST_expresion]
+  def agregar_argumento(self, arg):
+    self.lista.insert(0, arg)
+  def cantidad(self):
+    return len(self.lista)
   def __str__(self):
-    return f"Argumentos : {show(self.argumentos)}"
+    return f"{show(self.lista)}"
   def restore(self):
-    return super().restore(f"{restore(self.argumentos)}")
+    return super().restore(f"{restore(self.lista)}")
 
 class AST_asignable(AST_declaracion):
   def __init__(self):
@@ -852,7 +894,7 @@ class AST_identificador(AST_asignable):
   def restore(self):
     return super().restore(f"{self.identificador}")
 
-class AST_modificador_objeto(AST_declaracion):
+class AST_modificador_objeto(AST_modificador):
   def __init__(self):
     super().__init__()
 
@@ -875,24 +917,36 @@ def aplicarModificadorVariable(decl_var, mod):
 
 def aplicarModificadorFuncion(func, mod):
   if type(mod) is AST_argumentos:
-    return AST_invocacion(func, mod)
+    return aplicarModificadorArgumentos(id, mod)
   else: # [AST_skippeable]
     func.clausura(mod)
     return func
 
 def aplicarModificadorIdentificador(id, mod):
   if type(mod) is AST_argumentos:
-    return AST_invocacion(id, mod)
+    return aplicarModificadorArgumentos(id, mod)
   if isinstance(mod, AST_modificador_objeto):
-    if type(mod) is AST_modificador_objeto_acceso:
-      return AST_acceso(id, mod)
-    if type(mod) is AST_modificador_objeto_index:
-      return AST_index(id, mod)
+    return aplicarModificadorObjeto(id, mod)
   elif isinstance(mod, AST_expresion):
     return AST_asignacion(id, mod)
   else: # [AST_skippeable]
     id.clausura(mod)
     return id
+
+def aplicarModificadorObjeto(obj, mod):
+  if type(mod) is AST_modificador_objeto_acceso:
+    resultado = AST_acceso(obj, mod)
+  if type(mod) is AST_modificador_objeto_index:
+    resultado = AST_index(obj, mod)
+  if not (mod.adicional is None):
+    resultado = aplicarModificadorExpresion(resultado, mod.adicional)
+  return resultado
+
+def aplicarModificadorArgumentos(f, mod):
+  resultado = AST_invocacion(f, mod)
+  if not (mod.adicional is None):
+    resultado = aplicarModificadorExpresion(resultado, mod.adicional)
+  return resultado
 
 def aplicarModificadorAsignacion(asignacion, mod):
   if False:
@@ -903,16 +957,17 @@ def aplicarModificadorAsignacion(asignacion, mod):
 
 def aplicarModificadorExpresion(expresion, mod):
   if type(mod) is AST_argumentos:
-    return AST_invocacion(expresion, mod)
+    return aplicarModificadorArgumentos(expresion, mod)
   if isinstance(mod, AST_modificador_objeto):
-    if type(mod) is AST_modificador_objeto_acceso:
-      return AST_acceso(expresion, mod)
-    if type(mod) is AST_modificador_objeto_index:
-      return AST_index(expresion, mod)
+    return aplicarModificadorObjeto(expresion, mod)
   else: # [AST_skippeable]
     expresion.clausura(mod)
     return expresion
 
+def cantidad(x):
+  if type(x) == type([]):
+    return len(x)
+  return x.cantidad()
 
 def show(x):
   if x is None:
