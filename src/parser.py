@@ -62,8 +62,9 @@ def t_error(t):
   t.lexer.skip(1)
   return t
 
+lexer = lex()
+
 def tokenizar(contenido):
-  lexer = lex()
   lexer.input(contenido)
   resultado = []
   while True:
@@ -172,7 +173,7 @@ def p_skippeable_no_vacio(p):
     D -> function       D_FUNCTION    AST_expresion_funcion | AST_declaracion_funcion | AST_invocacion
     D -> let|var|const  D_VAR         AST_declaracion_variable
     D -> id             D_ID          AST_invocacion | AST_asignacion | AST_identificador | AST_acceso | AST_index
-    D -> num|string     D_LITERAL     ¡TODO!
+    D -> num|string     D_LITERAL     AST_expresion_literal
 ''' #################################################################################################
 
 # DECLARACIÓN : FUNCIÓN (declaración de función o función anónima)
@@ -679,6 +680,47 @@ def p_opt_modificador_invocacion_objeto(p): # AST_modificador_objeto
   modificador_objeto = p[1]
   p[0] = modificador_objeto
 
+# DECLARACIÓN : LITERAL (un número o un string suelto)
+ #################################################################################################
+def p_declaracion_literal(p): # AST_expresion_literal
+  '''
+  declaracion : NUMERO opt_modificador_literal_suelto
+              | STRING opt_modificador_literal_suelto
+  '''
+  p[0] = AST_expresion_literal(p[1])
+
+def p_opt_modificador_literal_suelto_vacio(p):
+  '''
+  opt_modificador_literal_suelto : vacio
+  '''
+  p[0] = []
+
+def p_opt_modificador_literal_suelto_con_skip(p):
+  '''
+  opt_modificador_literal_suelto : sf modificador_literal_suelto
+  '''
+  s = p[1]                                      # [AST_skippeable]
+  modificador_literal_suelto = p[2]             # [AST_skippeable]
+  if type(modificador_literal_suelto) == type([]):
+    modificador_literal_suelto[0].apertura(s)
+  else:
+    modificador_literal_suelto.apertura(s)
+  p[0] = modificador_literal_suelto
+
+def p_opt_modificador_literal_suelto_sin_skip(p):
+  '''
+  opt_modificador_literal_suelto : modificador_literal_suelto
+  '''
+  modificador_literal_suelto = p[1]             # [AST_skippeable]
+  p[0] = modificador_literal_suelto
+
+def p_modificador_literal_suelto_cierre(p): # [AST_skippeable]
+  '''
+  modificador_literal_suelto : cierre
+  '''
+  cierre = p[1]                                 # [AST_skippeable]
+  p[0] = cierre
+
 def p_cierre(p): # [AST_skippeable]
   '''
   cierre : PUNTO_Y_COMA s
@@ -989,4 +1031,4 @@ def restore(x):
 parser = yacc()
 
 def parsear(contenido):
-  return parser.parse(contenido)
+  return parser.parse(contenido, lex())
