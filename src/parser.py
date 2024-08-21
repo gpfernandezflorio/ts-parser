@@ -1,5 +1,5 @@
-from ply.lex import lex, LexToken
-from ply.yacc import yacc
+from my_ply.lex import lex, LexToken
+from my_ply.yacc import yacc
 
 tokens = (
   'DECL_FUNC',
@@ -73,11 +73,12 @@ def tokenizar(contenido):
     resultado.append(t)
   return resultado
 
-def token(tipo, valor, linea, pos):
+def token(tipo, valor, linea, col, pos):
   t = LexToken()
   t.type = tipo
   t.value = valor
   t.lineno = linea
+  t.colno = col
   t.lexpos = pos
   return t
 

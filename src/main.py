@@ -25,15 +25,15 @@ def main():
 
 def mostrarTokens(tokens):
   for t in tokens:
-    print(fill(t.type) + clean(t.value))
+    print(fill(str(t.lineno),3) + ":" + fill(str(t.colno),6) + fill(t.type,15) + clean(t.value))
 
 def mostrarAST(ast):
   for n in ast:
     print(n)
 
-def fill(s):
+def fill(s,k):
   resultado = s
-  while len(resultado) < 15:
+  while len(resultado) < k:
     resultado += ' '
   return resultado
 

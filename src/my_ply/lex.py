@@ -56,7 +56,7 @@ class LexError(Exception):
 # Token class.  This class is used to represent the tokens produced.
 class LexToken(object):
     def __repr__(self):
-        return f'LexToken({self.type},{self.value!r},{self.lineno},{self.lexpos})'
+        return f'T({self.type},{self.value!r},{self.lineno},{self.colno},{self.lexpos})'
 
 # This object is a stand-in for a logging object created by the
 # logging module.
@@ -89,6 +89,7 @@ class PlyLogger(object):
 #
 #    lineno           -  Current line number
 #    lexpos           -  Current position in the input string
+#    colno            -  Current position in the current line
 # -----------------------------------------------------------------------------
 
 class Lexer:
@@ -118,6 +119,7 @@ class Lexer:
         self.lexliterals = ''         # Literal characters that can be passed through
         self.lexmodule = None         # Module
         self.lineno = 1               # Current line number
+        self.colno = 1                # Current column number in the current line
 
     def clone(self, object=None):
         c = copy.copy(self)
@@ -191,6 +193,16 @@ class Lexer:
     # ------------------------------------------------------------
     def skip(self, n):
         self.lexpos += n
+        self.colno += n
+
+    def actualizarColNo(self, ini, fin):
+      self.colno = self.siguienteColNo(self.colno, ini, fin)
+
+    def siguienteColNo(self, colno, ini, fin):
+      lastindex = self.lexdata[ini:fin].rfind('\n')
+      if lastindex < 0:
+        return colno + (fin-ini)
+      return len(self.lexdata[ini+lastindex:fin])
 
     # ------------------------------------------------------------
     # token() - Return the next token from the Lexer
@@ -205,11 +217,13 @@ class Lexer:
         lexlen    = self.lexlen
         lexignore = self.lexignore
         lexdata   = self.lexdata
+        colno     = self.colno
 
         while lexpos < lexlen:
             # This code provides some short-circuit code for whitespace, tabs, and other ignored characters
             if lexdata[lexpos] in lexignore:
                 lexpos += 1
+                colno += 1
                 continue
 
             # Look for a regular expression match
@@ -223,26 +237,32 @@ class Lexer:
                 tok.value = m.group()
                 tok.lineno = self.lineno
                 tok.lexpos = lexpos
+                tok.colno = colno
 
                 i = m.lastindex
                 func, tok.type = lexindexfunc[i]
 
+                fin = m.end()
                 if not func:
                     # If no token type was set, it's an ignored token
                     if tok.type:
-                        self.lexpos = m.end()
+                        self.actualizarColNo(lexpos,fin)
+                        self.lexpos = fin
                         return tok
                     else:
-                        lexpos = m.end()
+                        colno = self.siguienteColNo(colno,lexpos,fin)
+                        lexpos = fin
                         break
 
-                lexpos = m.end()
+                colno = self.siguienteColNo(colno,lexpos,fin)
+                lexpos = fin
 
                 # If token is processed by a function, call it
 
                 tok.lexer = self      # Set additional attributes useful in token rules
                 self.lexmatch = m
                 self.lexpos = lexpos
+                self.colno = colno
                 newtok = func(tok)
                 del tok.lexer
                 del self.lexmatch
@@ -251,6 +271,7 @@ class Lexer:
                 if not newtok:
                     lexpos    = self.lexpos         # This is here in case user has updated lexpos.
                     lexignore = self.lexignore      # This is here in case there was a state change
+                    colno     = self.colno
                     break
                 return newtok
             else:
@@ -261,7 +282,9 @@ class Lexer:
                     tok.lineno = self.lineno
                     tok.type = tok.value
                     tok.lexpos = lexpos
+                    tok.colno = colno
                     self.lexpos = lexpos + 1
+                    self.colno = colno + 1
                     return tok
 
                 # No match. Call t_error() if defined.
@@ -272,19 +295,23 @@ class Lexer:
                     tok.type = 'error'
                     tok.lexer = self
                     tok.lexpos = lexpos
+                    tok.colno = colno
                     self.lexpos = lexpos
+                    self.colno = colno
                     newtok = self.lexerrorf(tok)
                     if lexpos == self.lexpos:
                         # Error method didn't change text position at all. This is an error.
                         raise LexError(f"Scanning error. Illegal character {lexdata[lexpos]!r}",
                                        lexdata[lexpos:])
                     lexpos = self.lexpos
+                    colno = self.colno
                     if not newtok:
                         continue
                     return newtok
 
                 self.lexpos = lexpos
-                raise LexError(f"Illegal character {lexdata[lexpos]!r} at index {lexpos}",
+                self.colno = colno
+                raise LexError(f"Illegal character {lexdata[lexpos]!r} at index {lexpos} ({self.lineno}:{colno})",
                                lexdata[lexpos:])
 
         if self.lexeoff:
@@ -293,12 +320,15 @@ class Lexer:
             tok.value = ''
             tok.lineno = self.lineno
             tok.lexpos = lexpos
+            tok.colno = colno
             tok.lexer = self
             self.lexpos = lexpos
+            self.colno = colno
             newtok = self.lexeoff(tok)
             return newtok
 
         self.lexpos = lexpos + 1
+        self.colno = colno + 1
         if self.lexdata is None:
             raise RuntimeError('No input string given with input()')
         return None
@@ -882,7 +912,7 @@ def runmain(lexer=None, data=None):
         tok = _token()
         if not tok:
             break
-        sys.stdout.write(f'({tok.type},{tok.value!r},{tok.lineno},{tok.lexpos})\n')
+        sys.stdout.write(f'({tok.type},{tok.value!r},{tok.lineno},{tok.colno},{tok.lexpos})\n')
 
 # -----------------------------------------------------------------------------
 # @TOKEN(regex)
