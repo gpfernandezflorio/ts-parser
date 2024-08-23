@@ -5,8 +5,8 @@ from parser import AST_espacios as espacios
 from parser import AST_invocacion
 from parser import AST_declaracion_variable as variable
 from parser import AST_asignacion as asignacion
-from parser import AST_acceso
-from parser import AST_index
+from parser import AST_expresion_acceso
+from parser import AST_expresion_index
 from parser import AST_identificador as identificador
 from parser import AST_expresion_literal as literal
 from parser import AST_declaracion_funcion
@@ -27,10 +27,10 @@ def funcion(nombre, parametros, cuerpo):
   return AST_declaracion_funcion(nombre, parametros, cuerpo)
 
 def acceso(objeto, campo):
-  return AST_acceso(objeto, AST_modificador_objeto_acceso(identificador(campo)))
+  return AST_expresion_acceso(objeto, AST_modificador_objeto_acceso(identificador(campo)))
 
 def index(objeto, indice):
-  return AST_index(objeto, AST_modificador_objeto_index(literal(indice)))
+  return AST_expresion_index(objeto, AST_modificador_objeto_index(literal(indice)))
 
 def main():
   if len(sys.argv) > 1:
@@ -226,6 +226,32 @@ casos_de_test = [
   ], [acceso('a','b'),
       index('a','1'),
       index('b','a')
+  ]),
+  Test("Modificación de objetos",
+    "a.b=c[1].d;a[c]=d().b",[
+      id('a',1,1,0),
+      t('PUNTO','.',1,2,1),
+      id('b',1,3,2),
+      t('ASIGNACION','=',1,4,3),
+      id('c',1,5,4),
+      t('ABRE_CORCHETE','[',1,6,5),
+      n('1',1,7,6),
+      t('CIERRA_CORCHETE',']',1,8,7),
+      t('PUNTO','.',1,9,8),
+      id('d',1,10,9),
+      t('PUNTO_Y_COMA',';',1,11,10),
+      id('a',1,12,11),
+      t('ABRE_CORCHETE','[',1,13,12),
+      id('c',1,14,13),
+      t('CIERRA_CORCHETE',']',1,15,14),
+      t('ASIGNACION','=',1,16,15),
+      id('d',1,17,16),
+      t('ABRE_PAREN','(',1,18,17),
+      t('CIERRA_PAREN',')',1,19,18),
+      t('PUNTO','.',1,20,19),
+      id('b',1,21,20)
+  ], [asignacion(acceso('a','b'),acceso(index('c','1'),'d')),
+      asignacion(index('a','c'),acceso(invocacion('d'),'b'))
   ]),
   Test("Combinación objetos y funciones",
     "a.b.c()().c(c[3].b[a()[b]()][2])",[
