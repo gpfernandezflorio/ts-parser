@@ -10,6 +10,7 @@ from parser import AST_expresion_index
 from parser import AST_identificador as identificador
 from parser import AST_expresion_literal as literal
 from parser import AST_declaracion_funcion
+from parser import AST_expresion_funcion
 from parser import AST_comentario as comentario
 from parser import AST_modificador_objeto_acceso
 from parser import AST_modificador_objeto_index
@@ -25,6 +26,9 @@ def invocacion(funcion, argumentos=[]):
 
 def funcion(nombre, parametros, cuerpo):
   return AST_declaracion_funcion(nombre, parametros, cuerpo)
+
+def abs(parametros, cuerpo):
+  return AST_expresion_funcion(parametros, cuerpo)
 
 def acceso(objeto, campo):
   return AST_expresion_acceso(objeto, AST_modificador_objeto_acceso(identificador(campo)))
@@ -138,7 +142,7 @@ casos_de_test = [
       asignacion('x',literal("'2'")),
       asignacion('x',literal('"true"'))
   ]),
-  Test("Declaración de función",
+  Test("Declaración de función (1)",
     "function HOLA() {x=2.5;let y = .66\t;}",[
     t('DECL_FUNC','function',1,1,0),
     t('SKIP',' ',1,9,8),
@@ -165,6 +169,52 @@ casos_de_test = [
         asignacion('x',literal('2.5')),
         variable('y',literal('.66'))
     ])
+  ]),
+  Test("Declaración de función (2)",
+    "const z1 = function ( b ) {2;}",[
+    t('DECL_VAR','const',1,1,0),
+    t('SKIP',' ',1,6,5),
+    id('z1',1,7,6),
+    t('SKIP',' ',1,9,8),
+    t('ASIGNACION','=',1,10,9),
+    t('SKIP',' ',1,11,10),
+    t('DECL_FUNC','function',1,12,11),
+    t('SKIP',' ',1,20,19),
+    t('ABRE_PAREN','(',1,21,20),
+    t('SKIP',' ',1,22,21),
+    id('b',1,23,22),
+    t('SKIP',' ',1,24,23),
+    t('CIERRA_PAREN',')',1,25,24),
+    t('SKIP',' ',1,26,25),
+    t('ABRE_LLAVE','{',1,27,26),
+    n('2',1,28,27),
+    t('PUNTO_Y_COMA',';',1,29,28),
+    t('CIERRA_LLAVE','}',1,30,29)
+  ], [variable('z1',abs('b',literal('2')))
+  ]),
+  Test("Declaración de función e invocación",
+    "const z1 = function ( b ) {2;}()",[
+    t('DECL_VAR','const',1,1,0),
+    t('SKIP',' ',1,6,5),
+    id('z1',1,7,6),
+    t('SKIP',' ',1,9,8),
+    t('ASIGNACION','=',1,10,9),
+    t('SKIP',' ',1,11,10),
+    t('DECL_FUNC','function',1,12,11),
+    t('SKIP',' ',1,20,19),
+    t('ABRE_PAREN','(',1,21,20),
+    t('SKIP',' ',1,22,21),
+    id('b',1,23,22),
+    t('SKIP',' ',1,24,23),
+    t('CIERRA_PAREN',')',1,25,24),
+    t('SKIP',' ',1,26,25),
+    t('ABRE_LLAVE','{',1,27,26),
+    n('2',1,28,27),
+    t('PUNTO_Y_COMA',';',1,29,28),
+    t('CIERRA_LLAVE','}',1,30,29),
+    t('ABRE_PAREN','(',1,31,30),
+    t('CIERRA_PAREN',')',1,32,31)
+  ], [variable('z1',invocacion(abs('b',literal('2'))))
   ]),
   Test("Comentarios",
     "/**/a // b \n// // hola /* */\nc\n/*\n\nhola\n\n*/\nd\n/*\n\nchau\n\n*/",[
@@ -253,7 +303,7 @@ casos_de_test = [
   ], [asignacion(acceso('a','b'),acceso(index('c','1'),'d')),
       asignacion(index('a','c'),acceso(invocacion('d'),'b'))
   ]),
-  Test("Combinación objetos y funciones",
+  Test("Combinación objetos y funciones (1)",
     "a.b.c()().c(c[3].b[a()[b]()][2])",[
     id('a',1,1,0),
     t('PUNTO','.',1,2,1),
@@ -302,6 +352,52 @@ casos_de_test = [
         ),'2')
       ]
     )
+  ]),
+  Test("Combinación objetos y funciones (2)",
+    "a   (     b(      c(       )))\n\na[1][2].x[3][b]\n\na()()()()",[
+    id('a',1,1,0),
+    t('SKIP','   ',1,2,1),
+    t('ABRE_PAREN','(',1,5,4),
+    t('SKIP','     ',1,6,5),
+    id('b',1,11,10),
+    t('ABRE_PAREN','(',1,12,11),
+    t('SKIP','      ',1,13,12),
+    id('c',1,19,18),
+    t('ABRE_PAREN','(',1,20,19),
+    t('SKIP','       ',1,21,20),
+    t('CIERRA_PAREN',')',1,28,27),
+    t('CIERRA_PAREN',')',1,29,28),
+    t('CIERRA_PAREN',')',1,30,29),
+    t('SKIP','\n\n',1,31,30),
+    id('a',3,1,32),
+    t('ABRE_CORCHETE','[',3,2,33),
+    n('1',3,3,34),
+    t('CIERRA_CORCHETE',']',3,4,35),
+    t('ABRE_CORCHETE','[',3,5,36),
+    n('2',3,6,37),
+    t('CIERRA_CORCHETE',']',3,7,38),
+    t('PUNTO','.',3,8,39),
+    id('x',3,9,40),
+    t('ABRE_CORCHETE','[',3,10,41),
+    n('3',3,11,42),
+    t('CIERRA_CORCHETE',']',3,12,43),
+    t('ABRE_CORCHETE','[',3,13,44),
+    id('b',3,14,45),
+    t('CIERRA_CORCHETE',']',3,15,46),
+    t('SKIP','\n\n',3,16,47),
+    id('a',5,1,49),
+    t('ABRE_PAREN','(',5,2,50),
+    t('CIERRA_PAREN',')',5,3,51),
+    t('ABRE_PAREN','(',5,4,52),
+    t('CIERRA_PAREN',')',5,5,53),
+    t('ABRE_PAREN','(',5,6,54),
+    t('CIERRA_PAREN',')',5,7,55),
+    t('ABRE_PAREN','(',5,8,56),
+    t('CIERRA_PAREN',')',5,9,57)
+  ],[
+    invocacion('a',[invocacion('b',[invocacion('c')])]),
+    index(index(acceso(index(index('a','1'),'2'),'x'),'3'),'b'),
+    invocacion(invocacion(invocacion(invocacion('a'))))
   ])
 ]
 

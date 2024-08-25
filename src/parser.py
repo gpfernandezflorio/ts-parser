@@ -555,6 +555,16 @@ def p_expresion_asignada_identificador(p): # AST_expresion (_invocacion, _acceso
   expresion_base = AST_expresion_identificador(identificador)
   p[0] = aplicarModificador(expresion_base, modificador_expresion)
 
+def p_expresion_asignada_funcion(p): # AST_expresion_funcion | AST_expresion_invocacion
+  '''
+  expresion_asignada : DECL_FUNC s definicion_funcion
+  '''
+  declarador = AST_sintaxis(p[1])
+  s = concatenar(declarador, p[2])      # [AST_skippeable]
+  rec = p[3]                            # AST_expresion_funcion | AST_expresion_invocacion
+  rec.apertura(s)
+  p[0] = rec
+
 def p_opt_modificador_expresion_asignada_con_skip(p): # AST_argumentos | AST_expresion | AST_modificador_objeto | [AST_skippeable]  {skip, comentario}
   '''
   opt_modificador_expresion_asignada : sf modificador_expresion_asignada
@@ -781,24 +791,26 @@ def p_declaracion_literal(p): # AST_expresion_literal
   declaracion : NUMERO opt_modificador_literal_suelto
               | STRING opt_modificador_literal_suelto
   '''
-  p[0] = AST_expresion_literal(p[1])
+  literal = AST_expresion_literal(p[1])   # AST_expresion_literal
+  modificador = p[2]                      # [AST_skippeable]
+  p[0] = aplicarModificador(literal, modificador)
 
-def p_opt_modificador_literal_suelto_con_skip(p):
+def p_opt_modificador_literal_suelto_con_skip(p): # [AST_skippeable]
   '''
   opt_modificador_literal_suelto : sf modificador_literal_suelto
   '''
-  s = p[1]                        # [AST_skippeable]
-  modificador = p[2]              # [AST_skippeable]
+  s = p[1]                                # [AST_skippeable]
+  modificador = p[2]                      # [AST_skippeable]
   p[0] = modificador_con_skip(modificador, s)
 
-def p_opt_modificador_literal_suelto_sin_skip(p):
+def p_opt_modificador_literal_suelto_sin_skip(p): # [AST_skippeable]
   '''
   opt_modificador_literal_suelto : modificador_literal_suelto
   '''
-  modificador_literal_suelto = p[1]             # [AST_skippeable]
+  modificador_literal_suelto = p[1]       # [AST_skippeable]
   p[0] = modificador_literal_suelto
 
-def p_modificador_literal_suelto_vacio(p):
+def p_modificador_literal_suelto_vacio(p): # [AST_skippeable]
   '''
   modificador_literal_suelto : vacio
   '''
