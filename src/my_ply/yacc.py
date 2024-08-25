@@ -2434,6 +2434,15 @@ def yacc(*, debug=yaccdebug, module=None, start=None,
     lr = LRTable(grammar, debuglog)
 
     if debug:
+        debuglog.info('[[ Primeros ]]')
+        for e in grammar.First:
+          debuglog.info('%-30s : %s', e, ', '.join(grammar.First[e]))
+        debuglog.info('')
+        debuglog.info('[[ Siguientes ]]')
+        for e in grammar.Follow:
+          debuglog.info('%-30s : %s', e, ', '.join(grammar.Follow[e]))
+        debuglog.info('')
+
         num_sr = len(lr.sr_conflicts)
 
         # Report shift/reduce and reduce/reduce conflicts
