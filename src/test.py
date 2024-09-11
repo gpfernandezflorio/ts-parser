@@ -7,6 +7,7 @@ from parser import AST_declaracion_variable as variable
 from parser import AST_asignacion as asignacion
 from parser import AST_expresion_acceso
 from parser import AST_expresion_index
+from parser import AST_expresion_objeto
 from parser import AST_identificador as identificador
 from parser import AST_expresion_literal as literal
 from parser import AST_declaracion_funcion
@@ -14,6 +15,7 @@ from parser import AST_expresion_funcion
 from parser import AST_comentario as comentario
 from parser import AST_modificador_objeto_acceso
 from parser import AST_modificador_objeto_index
+from parser import AST_campo
 
 def id(s,i,c,f):
   return t('IDENTIFICADOR',s,i,c,f)
@@ -27,7 +29,7 @@ def invocacion(funcion, argumentos=[]):
 def funcion(nombre, parametros, cuerpo):
   return AST_declaracion_funcion(nombre, parametros, cuerpo)
 
-def abs(parametros, cuerpo):
+def abs(parametros=[], cuerpo=None):
   return AST_expresion_funcion(parametros, cuerpo)
 
 def acceso(objeto, campo):
@@ -35,6 +37,9 @@ def acceso(objeto, campo):
 
 def index(objeto, indice):
   return AST_expresion_index(objeto, AST_modificador_objeto_index(literal(indice)))
+
+def objeto(dic):
+  return AST_expresion_objeto([AST_campo(k,dic[k]) for k in dic])
 
 def main():
   if len(sys.argv) > 1:
@@ -398,6 +403,29 @@ casos_de_test = [
     invocacion('a',[invocacion('b',[invocacion('c')])]),
     index(index(acceso(index(index('a','1'),'2'),'x'),'3'),'b'),
     invocacion(invocacion(invocacion(invocacion('a'))))
+  ]),
+  Test("Objetos literales",
+    "a={}{x:2,b:function(){}}",[
+    id('a',1,1,0),
+    t('ASIGNACION','=',1,2,1),
+    t('ABRE_LLAVE','{',1,3,2),
+    t('CIERRA_LLAVE','}',1,4,3),
+    t('ABRE_LLAVE','{',1,5,4),
+    id('x',1,6,5),
+    t('DOS_PUNTOS',':',1,7,6),
+    n('2',1,8,7),
+    t('COMA',',',1,9,8),
+    id('b',1,10,9),
+    t('DOS_PUNTOS',':',1,11,10),
+    t('DECL_FUNC','function',1,12,11),
+    t('ABRE_PAREN','(',1,20,19),
+    t('CIERRA_PAREN',')',1,21,20),
+    t('ABRE_LLAVE','{',1,22,21),
+    t('CIERRA_LLAVE','}',1,23,22),
+    t('CIERRA_LLAVE','}',1,24,23)
+  ],[
+    asignacion('a',objeto({})),
+    objeto({"x":2,"b":abs()})
   ])
 ]
 
