@@ -15,7 +15,9 @@ from parser import AST_expresion_funcion
 from parser import AST_comentario as comentario
 from parser import AST_modificador_objeto_acceso
 from parser import AST_modificador_objeto_index
+from parser import AST_operador as operador
 from parser import AST_campo
+from parser import AST_combinador
 
 def id(s,i,c,f):
   return t('IDENTIFICADOR',s,i,c,f)
@@ -40,6 +42,11 @@ def index(objeto, indice):
 
 def objeto(dic):
   return AST_expresion_objeto([AST_campo(k,dic[k]) for k in dic])
+
+def combinador(clase, expresion, cuerpo):
+  combinador = AST_combinador(clase, expresion)
+  combinador.agregar_cuerpo(cuerpo)
+  return combinador
 
 def main():
   if len(sys.argv) > 1:
@@ -426,6 +433,52 @@ casos_de_test = [
   ],[
     asignacion('a',objeto({})),
     objeto({"x":2,"b":abs()})
+  ]),
+  Test("Operadores",
+    "2+3+4;!b*(2>=c)",[
+    n('2',1,1,0),
+    t('OPERADOR_BINARIO','+',1,2,1),
+    n('3',1,3,2),
+    t('OPERADOR_BINARIO','+',1,4,3),
+    n('4',1,5,4),
+    t('PUNTO_Y_COMA',';',1,6,5),
+    t('OPERADOR_PREFIJO','!',1,7,6),
+    id('b',1,8,7),
+    t('OPERADOR_BINARIO','*',1,9,8),
+    t('ABRE_PAREN','(',1,10,9),
+    n('2',1,11,10),
+    t('OPERADOR_BINARIO','>=',1,12,11),
+    id('c',1,14,13),
+    t('CIERRA_PAREN',')',1,15,14)
+  ],[
+    operador(operador('2','+','3'),'+','4'),
+    operador(operador(None,'!','b'),'*',operador('2','>=','c'))
+  ]),
+  Test("Comandos compuestos",
+    "if ( t < 10 ) { i -- ; }",[
+    t('COMBINADOR','if',1,1,0),
+    t('SKIP',' ',1,3,2),
+    t('ABRE_PAREN','(',1,4,3),
+    t('SKIP',' ',1,5,4),
+    id('t',1,6,5),
+    t('SKIP',' ',1,7,6),
+    t('OPERADOR_BINARIO','<',1,8,7),
+    t('SKIP',' ',1,9,8),
+    n('10',1,10,9),
+    t('SKIP',' ',1,12,11),
+    t('CIERRA_PAREN',')',1,13,12),
+    t('SKIP',' ',1,14,13),
+    t('ABRE_LLAVE','{',1,15,14),
+    t('SKIP',' ',1,16,15),
+    id('i',1,17,16),
+    t('SKIP',' ',1,18,17),
+    t('OPERADOR_INFIJO','--',1,19,18),
+    t('SKIP',' ',1,21,20),
+    t('PUNTO_Y_COMA',';',1,22,21),
+    t('SKIP',' ',1,23,22),
+    t('CIERRA_LLAVE','}',1,24,23)
+  ],[
+    combinador('if',[espacios(' '),operador('t','<','10')],[espacios(' '),operador('i','--',None)])
   ])
 ]
 
