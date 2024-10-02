@@ -18,10 +18,13 @@ tokens = (
   'CIERRA_LLAVE',
   'ABRE_CORCHETE',
   'CIERRA_CORCHETE',
-  'OPERADOR_BINARIO',
   'OPERADOR_PREFIJO',
   'OPERADOR_INFIJO',
+  'OPERADOR_BINARIO',
+  'MAS',
   'MENOS',
+  'POR',
+  'DIV',
   'DOS_PUNTOS',
   'PUNTO_Y_COMA',
   'PUNTO',
@@ -55,17 +58,20 @@ def t_COMENTARIO_ML(t):
   t.type = "COMENTARIO_ML"
   t.lexer.lineno += t.value.count('\n')
   return t
-t_ASIGNACION = r'=|\+=|\*='
+t_ASIGNACION = r'=|\+=|\*=|-=|/='
 t_ABRE_PAREN = r'\('
 t_CIERRA_PAREN = r'\)'
 t_ABRE_LLAVE = r'{'
 t_CIERRA_LLAVE = r'}'
 t_ABRE_CORCHETE = r'\['
 t_CIERRA_CORCHETE = r'\]'
-t_OPERADOR_BINARIO = r'\+|\*|==|!=|===|!==|>=|<=|>|<|&&|\|\|' # TODO: falta la diagonal de la división
 t_OPERADOR_PREFIJO = r'!'
 t_OPERADOR_INFIJO = r'\+\+|--'
+t_OPERADOR_BINARIO = r'==|!=|===|!==|>=|<=|>|<|&&|\|\|'
+t_MAS = r'\+'
 t_MENOS = r'-'
+t_POR = r'\*'
+t_DIV = r'/'
 t_DOS_PUNTOS = r':'
 t_PUNTO_Y_COMA = r';'
 t_PUNTO = r'\.'
@@ -114,7 +120,10 @@ def concatenar(a, b):
   return resultado
 
 def p_error(p):
-  print(f'Error en línea {p.lineno} {p.value!r}')
+  if p is None:
+    print('EoF')
+  else:
+    print(f'Error en línea {p.lineno} {p.value!r}')
   exit(1)
 
 # PROGRAMA : [AST_nodo] #############################################################################
@@ -212,11 +221,12 @@ def p_declaracion_function(p): # AST_expresion_funcion | AST_declaracion_funcion
 
 def p_declaracion_function_decl(p): # AST_declaracion_funcion
   '''
-  declaracion_function : IDENTIFICADOR s definicion_funcion
+  declaracion_function : IDENTIFICADOR s definicion_funcion opt_cierre
   '''
   nombre = AST_identificador(p[1])
   s = p[2]              # [AST_skippeable]
   rec = p[3]            # AST_expresion_funcion | AST_invocacion
+  cierre = p[4]
   # Si la estoy declarando, no debería haber una invocación
   if type(rec) is AST_invocacion:
     print("ERROR p_declaracion_function_decl")
@@ -224,6 +234,7 @@ def p_declaracion_function_decl(p): # AST_declaracion_funcion
   nombre.clausura(s)
   p[0] = AST_declaracion_funcion(nombre, rec.parametros, rec.cuerpo)
   p[0].imitarEspacios(rec)
+  p[0].clausura(cierre)
 
 def p_declaracion_function_anon(p): # AST_expresion_funcion | AST_invocacion
   '''
@@ -238,7 +249,7 @@ def p_definicion_funcion(p): # AST_expresion_funcion | AST_invocacion
   '''
   parametros = p[1]       # AST_parametros
   s = p[2]                # [AST_skippeable]
-  cuerpo = p[3]           # [AST_nodo]
+  cuerpo = p[3]           # AST_cuerpo
   modificador = p[4]      # AST_argumentos | [AST_skippeable]
   parametros.clausura(s)
   expresion = AST_expresion_funcion(parametros, cuerpo)
@@ -290,18 +301,16 @@ def p_parametros(p): # AST_parametros
   p[0].apertura(s)
   p[0].clausura(cierra)
 
-def p_cuerpo(p): # [AST_nodo]
+def p_cuerpo(p): # AST_cuerpo
   '''
   cuerpo : ABRE_LLAVE programa CIERRA_LLAVE
   '''
   abre = AST_sintaxis(p[1])
-  programa = p[2]               # [AST_nodo]
+  contenido = p[2]               # [AST_nodo]
   cierra = AST_sintaxis(p[3])
-  if len(programa) == 0:
-    programa = [abre]
-  else:
-    programa[0].apertura(abre)
-  programa[-1].clausura(cierra)
+  programa = AST_cuerpo(contenido)
+  programa.apertura(abre)
+  programa.clausura(cierra)
   p[0] = programa
 
 def p_identificadores_vacio(p): # [AST_identificador]
@@ -778,10 +787,13 @@ def p_operador_operador_binario(p): # AST_modificador_operador_binario
     modificador = AST_modificador_operador_binario(clase, expresion)
   p[0] = modificador
 
-# TODO: Agregar el MENOS además del OPERADOR_BINARIO
+# TODO: Agregar el MENOS además del OPERADOR_BINARIO, MAS, etc.
 def p_operador_binario(p): # string
   '''
   operador_binario : OPERADOR_BINARIO
+                   | MAS
+                   | POR
+                   | DIV
   '''
   operador = p[1]
   p[0] = operador
@@ -1116,12 +1128,14 @@ def p_declaracion_combinador(p): # AST_combinador
 
 def p_combinador(p): # AST_combinador
   '''
-  combinador : selector_combinador_no_vacio cuerpo
+  combinador : selector_combinador_no_vacio cuerpo s opt_cierre
   '''
   combinador = p[1] # AST_combinador
-  cuerpo = p[2]     # [AST_nodo]
+  cuerpo = p[2]     # AST_cuerpo
+  cierre = concatenar(p[3], p[4])
   combinador.agregar_cuerpo(cuerpo)
   p[0] = combinador
+  p[0].clausura(cierre)
 
 def p_selector_combinador_simple(p): # AST_combinador
   '''
@@ -1309,11 +1323,20 @@ class AST_declaracion_funcion(AST_declaracion):
     super().__init__()
     self.nombre = nombre          # AST_identificador
     self.parametros = parametros  # AST_parametros
-    self.cuerpo = cuerpo          # [AST_nodo]
+    self.cuerpo = cuerpo          # AST_cuerpo
   def __str__(self):
     return f"DeclaraciónFunción : {show(self.nombre)}"
   def restore(self):
-    return super().restore(f"{restore(self.nombre)}{restore(self.parametros)}{''.join(map(restore, self.cuerpo))}")
+    return super().restore(f"{restore(self.nombre)}{restore(self.parametros)}{restore(self.cuerpo)}")
+
+class AST_cuerpo(AST_declaracion):
+  def __init__(self, contenido):
+    super().__init__()
+    self.contenido = contenido    # [AST_nodo]
+  def __str__(self):
+    return show(self.contenido)
+  def restore(self):
+    return super().restore(''.join(map(restore, self.contenido)))
 
 class AST_expresion(AST_declaracion):
   def __init__(self):
@@ -1350,11 +1373,11 @@ class AST_expresion_funcion(AST_expresion):
   def __init__(self, parametros, cuerpo):
     super().__init__()
     self.parametros = parametros  # AST_parametros
-    self.cuerpo = cuerpo          # [AST_nodo]
+    self.cuerpo = cuerpo          # AST_cuerpo
   def __str__(self):
     return f"FunciónAnónima"
   def restore(self):
-    return super().restore(f"{restore(self.parametros)}{''.join(map(restore, self.cuerpo))}")
+    return super().restore(f"{restore(self.parametros)}{restore(self.cuerpo)}")
 
 class AST_declaracion_variable(AST_declaracion):
   def __init__(self, nombre, asignacion=None):
@@ -1416,7 +1439,7 @@ class AST_combinador(AST_declaracion):
     self.expresion = expresion  # [AST_nodo] [[ OJO: no es una expresión porque podría ser algo como "let i=0; i++;" ]]
     self.cuerpo = []            # [AST_nodo]
   def agregar_cuerpo(self, cuerpo):
-    self.cuerpo = cuerpo        # [AST_nodo]
+    self.cuerpo = cuerpo        # AST_cuerpo
   def __str__(self):
     return f"{self.clase} : {show(self.expresion)} {show(self.cuerpo)}"
   def restore(self):

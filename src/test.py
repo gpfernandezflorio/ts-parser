@@ -134,7 +134,7 @@ casos_de_test = [
     t('SKIP','  ',1,9,8),
     n('5',1,11,10)
   ], [espacios('\t'),
-      variable('x',literal('5'))
+      variable('x','5')
   ]),
   Test("Declaración y asignación de variable con strings",
     "const\tx;x =\n'2'x=\"true\"",[
@@ -151,11 +151,11 @@ casos_de_test = [
     t('ASIGNACION','=',2,5,16),
     t('STRING','"true"',2,6,17)
   ], [variable('x'),
-      asignacion('x',literal("'2'")),
-      asignacion('x',literal('"true"'))
+      asignacion('x',"'2'"),
+      asignacion('x','"true"')
   ]),
   Test("Declaración de función (1)",
-    "function HOLA() {x=2.5;let y = .66\t;}",[
+    "function HOLA() {x=2.5;let y = .66\t;};",[
     t('DECL_FUNC','function',1,1,0),
     t('SKIP',' ',1,9,8),
     id('HOLA',1,10,9),
@@ -176,10 +176,11 @@ casos_de_test = [
     n('.66',1,32,31),
     t('SKIP','\t',1,35,34),
     t('PUNTO_Y_COMA',';',1,36,35),
-    t('CIERRA_LLAVE','}',1,37,36)
+    t('CIERRA_LLAVE','}',1,37,36),
+    t('PUNTO_Y_COMA',';',1,38,37)
   ], [funcion('HOLA',[],[
-        asignacion('x',literal('2.5')),
-        variable('y',literal('.66'))
+        asignacion('x','2.5'),
+        variable('y','.66')
     ])
   ]),
   Test("Declaración de función (2)",
@@ -202,7 +203,7 @@ casos_de_test = [
     n('2',1,28,27),
     t('PUNTO_Y_COMA',';',1,29,28),
     t('CIERRA_LLAVE','}',1,30,29)
-  ], [variable('z1',abs('b',literal('2')))
+  ], [variable('z1',abs('b','2'))
   ]),
   Test("Declaración de función e invocación",
     "const z1 = function ( b ) {2;}()",[
@@ -226,7 +227,7 @@ casos_de_test = [
     t('CIERRA_LLAVE','}',1,30,29),
     t('ABRE_PAREN','(',1,31,30),
     t('CIERRA_PAREN',')',1,32,31)
-  ], [variable('z1',invocacion(abs('b',literal('2'))))
+  ], [variable('z1',invocacion(abs('b','2')))
   ]),
   Test("Comentarios",
     "/**/a // b \n// // hola /* */\nc\n/*\n\nhola\n\n*/\nd\n/*\n\nchau\n\n*/",[
@@ -268,7 +269,7 @@ casos_de_test = [
     t('SKIP','  ',1,15,14),
     n('3',1,17,16),
     t('CIERRA_PAREN',')',1,18,17)
-  ], [invocacion('a', [literal('5'),invocacion('chau'),literal('3')])
+  ], [invocacion('a', ['5',invocacion('chau'),'3'])
   ]),
   Test("Acceso a objetos",
     "a.b;a[1];b[a]",[
@@ -437,14 +438,14 @@ casos_de_test = [
   Test("Operadores",
     "2+3+4;!b*(2>=c)",[
     n('2',1,1,0),
-    t('OPERADOR_BINARIO','+',1,2,1),
+    t('MAS','+',1,2,1),
     n('3',1,3,2),
-    t('OPERADOR_BINARIO','+',1,4,3),
+    t('MAS','+',1,4,3),
     n('4',1,5,4),
     t('PUNTO_Y_COMA',';',1,6,5),
     t('OPERADOR_PREFIJO','!',1,7,6),
     id('b',1,8,7),
-    t('OPERADOR_BINARIO','*',1,9,8),
+    t('POR','*',1,9,8),
     t('ABRE_PAREN','(',1,10,9),
     n('2',1,11,10),
     t('OPERADOR_BINARIO','>=',1,12,11),
@@ -455,7 +456,7 @@ casos_de_test = [
     operador(operador(None,'!','b'),'*',operador('2','>=','c'))
   ]),
   Test("Comandos compuestos",
-    "if ( t < 10 ) { i -- ; }",[
+    "if ( t < 10 ) { i -- ; }\nwhile(true){}\nfor (var i=0; i<=10; i++){i*=2}",[
     t('COMBINADOR','if',1,1,0),
     t('SKIP',' ',1,3,2),
     t('ABRE_PAREN','(',1,4,3),
@@ -476,9 +477,42 @@ casos_de_test = [
     t('SKIP',' ',1,21,20),
     t('PUNTO_Y_COMA',';',1,22,21),
     t('SKIP',' ',1,23,22),
-    t('CIERRA_LLAVE','}',1,24,23)
+    t('CIERRA_LLAVE','}',1,24,23),
+    t('SKIP','\n',1,25,24),
+    t('COMBINADOR','while',2,1,25),
+    t('ABRE_PAREN','(',2,6,30),
+    id('true',2,7,31),
+    t('CIERRA_PAREN',')',2,11,35),
+    t('ABRE_LLAVE','{',2,12,36),
+    t('CIERRA_LLAVE','}',2,13,37),
+    t('SKIP','\n',2,14,38),
+    t('COMBINADOR','for',3,1,39),
+    t('SKIP',' ',3,4,42),
+    t('ABRE_PAREN','(',3,5,43),
+    t('DECL_VAR','var',3,6,44),
+    t('SKIP',' ',3,9,47),
+    id('i',3,10,48),
+    t('ASIGNACION','=',3,11,49),
+    n('0',3,12,50),
+    t('PUNTO_Y_COMA',';',3,13,51),
+    t('SKIP',' ',3,14,52),
+    id('i',3,15,53),
+    t('OPERADOR_BINARIO','<=',3,16,54),
+    n('10',3,18,56),
+    t('PUNTO_Y_COMA',';',3,20,58),
+    t('SKIP',' ',3,21,59),
+    id('i',3,22,60),
+    t('OPERADOR_INFIJO','++',3,23,61),
+    t('CIERRA_PAREN',')',3,25,63),
+    t('ABRE_LLAVE','{',3,26,64),
+    id('i',3,27,65),
+    t('ASIGNACION','*=',3,28,66),
+    n('2',3,30,68),
+    t('CIERRA_LLAVE','}',3,31,69)
   ],[
-    combinador('if',[espacios(' '),operador('t','<','10')],[espacios(' '),operador('i','--',None)])
+    combinador('if',[espacios(' '),operador('t','<','10')],[espacios(' '),operador('i','--',None)]),
+    combinador('while',['true'],[]),
+    combinador('for',[variable('i','0'),operador('i','<=','10'),operador('i','++',None)],[asignacion('i','2')])
   ])
 ]
 
