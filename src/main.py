@@ -1,4 +1,5 @@
 import sys
+import functools
 from utils import boom, leerArchivo_, existeArchivo_
 from parser import tokenizar, parsear
 
@@ -13,15 +14,15 @@ def main():
   tokens = tokenizar(contenido)
   # mostrarTokens(tokens)
   ast = parsear(contenido)
-  mostrarAST(ast)
+  # mostrarAST(ast)
   z = ""
   for a in ast:
     z += a.restore()
-  if contenido == z:
+  if eq_string(contenido, z):
     print("Restauración exitosa")
   else:
     print("Falló la restauración")
-    print(z)
+    mostrarDiff(contenido, z)
 
 def mostrarTokens(tokens):
   for t in tokens:
@@ -30,6 +31,29 @@ def mostrarTokens(tokens):
 def mostrarAST(ast):
   for n in ast:
     print(n)
+
+def mostrarDiff(a, b):
+  lineas_a = a.split('\n')
+  lineas_b = a.split('\n')
+  i = 0
+  m = min(len(lineas_a), len(lineas_b))
+  while i < m and lineas_a[i] == lineas_b[i]:
+    i += 1
+  if i == m: # Uno es más largo
+    if len(lineas_b) > len(lineas_a):
+      print(f"Se generaron {len(lineas_b) - len(lineas_a)} líneas adicionales:")
+      lineas = lineas_b[m:]
+    else:
+      print(f"Se perdieron {len(lineas_a) - len(lineas_b)} líneas:")
+      lineas = lineas_a[m:]
+    print(''.join(lineas))
+  else:
+    print(f"[{i+1}]")
+    print(f"  {lineas_a[i]}")
+    print(f"  {lineas_b[i]}")
+
+def eq_string(a, b):
+  return len(a) == len(b) and functools.reduce(lambda x, rec: a[x]==b[x] and rec, range(len(a)), True)
 
 def fill(s,k):
   resultado = s

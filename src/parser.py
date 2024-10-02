@@ -21,6 +21,7 @@ tokens = (
   'OPERADOR_PREFIJO',
   'OPERADOR_INFIJO',
   'OPERADOR_BINARIO',
+  'ITERADOR',
   'MAS',
   'MENOS',
   'POR',
@@ -44,7 +45,7 @@ for k in ['if','for','while']:
   reserved_map[k] = 'COMBINADOR'
 
 for k in ['in','of']:
-  reserved_map[k] = 'OPERADOR_BINARIO'
+  reserved_map[k] = 'ITERADOR'
 
 def t_IDENTIFICADOR(t):
   r'[A-Za-z_][\w_]*'
@@ -67,7 +68,7 @@ t_ABRE_CORCHETE = r'\['
 t_CIERRA_CORCHETE = r'\]'
 t_OPERADOR_PREFIJO = r'!'
 t_OPERADOR_INFIJO = r'\+\+|--'
-t_OPERADOR_BINARIO = r'==|!=|===|!==|>=|<=|>|<|&&|\|\|'
+t_OPERADOR_BINARIO = r'===|!==|==|!=|>=|<=|>|<|&&|\|\|'
 t_MAS = r'\+'
 t_MENOS = r'-'
 t_POR = r'\*'
@@ -415,6 +416,16 @@ def p_modificador_variable_asignacion(p): # AST_expresion
   '''
   asignacion = p[1]       # AST_expresion
   p[0] = asignacion
+
+def p_modificador_variable_iteracion(p): # AST_iterador
+  '''
+  modificador_variable_no_vacio : ITERADOR s expresion
+  '''
+  iterador = AST_sintaxis(p[1])     # AST_sintaxis
+  s = concatenar(iterador, p[2])    # [AST_skippeable]
+  expresion = p[3]                  # AST_expresion
+  p[0] = AST_iterador(expresion)
+  p[0].apertura(s)
 
 def p_modificador_variable_cierre(p): # [AST_skippeable]
   '''
@@ -791,6 +802,7 @@ def p_operador_operador_binario(p): # AST_modificador_operador_binario
 def p_operador_binario(p): # string
   '''
   operador_binario : OPERADOR_BINARIO
+                   | ITERADOR
                    | MAS
                    | POR
                    | DIV
@@ -1106,9 +1118,9 @@ def p_fin_campos(p): # AST_campos
 
 def p_campo(p): # AST_campo
   '''
-  campo : IDENTIFICADOR s DOS_PUNTOS s expresion
+  campo : clave_campo s DOS_PUNTOS s expresion
   '''
-  clave = p[1]
+  clave = p[1] # AST_identificador | AST_expresion_literal (string)
   s = p[2]
   dp = AST_sintaxis(p[3])
   s = concatenar(s, dp)
@@ -1116,6 +1128,20 @@ def p_campo(p): # AST_campo
   valor = p[5]
   valor.apertura(s)
   p[0] = AST_campo(clave, valor)
+
+def p_clave_campo_identificador(p): # AST_identificador
+  '''
+  clave_campo : IDENTIFICADOR
+  '''
+  clave = AST_identificador(p[1]) # AST_identificador
+  p[0] = clave
+
+def p_clave_campo_string(p): # AST_expresion_literal
+  '''
+  clave_campo : STRING
+  '''
+  clave = AST_expresion_literal(p[1])   # AST_expresion_literal
+  p[0] = clave
 
 # DECLARACIÓN : COMBINADOR (if, for, while)
  #################################################################################################
@@ -1400,6 +1426,16 @@ class AST_invocacion(AST_declaracion):
   def restore(self):
     return super().restore(f"{restore(self.funcion)}{restore(self.argumentos)}")
 
+class AST_iteracion(AST_declaracion):
+  def __init__(self, variable, rango):
+    super().__init__()
+    self.variable = variable    # AST_identificador
+    self.rango = rango          # AST_expresion
+  def __str__(self):
+    return f"Iteración : {show(self.variable)} {show(self.rango)}"
+  def restore(self):
+    return super().restore(f"{restore(self.variable)}{restore(self.rango)}")
+
 class AST_asignacion(AST_declaracion):
   def __init__(self, asignable, valor):
     super().__init__()
@@ -1491,7 +1527,7 @@ class AST_parametros(AST_declaracion):
 class AST_campo(AST_declaracion):
   def __init__(self, clave, valor):
     super().__init__()
-    self.clave = clave  # AST_identificador
+    self.clave = clave  # AST_identificador | AST_expresion_literal (string)
     self.valor = valor  # AST_expresion
   def __str__(self):
     return f"{show(self.clave)}:{show(self.valor)}"
@@ -1582,6 +1618,11 @@ class AST_modificador_objeto_index(AST_modificador_objeto):
     super().__init__()
     self.indice = expresion       # AST_expresion
 
+class AST_iterador(AST_modificador):
+  def __init__(self, expresion):
+    super().__init__()
+    self.expresion = expresion    # AST_expresion
+
 def modificador_con_skip(modificador, s):
   if type(modificador) == type([]):
     if len(modificador) > 0:
@@ -1611,6 +1652,10 @@ def aplicarModificador(nodo, mod):
   elif isinstance(mod, AST_argumentos):
     # INVOCACIÓN: {nodo} ( {mod} )
     resultado = AST_invocacion(nodo, mod)
+  elif isinstance(mod, AST_iterador):
+    # ITERACIÓN: {nodo} in {mod}
+    mod.expresion.imitarEspacios(mod)
+    resultado = AST_iteracion(nodo, mod.expresion)
   elif isinstance(mod, AST_expresion):
     if isinstance(nodo, AST_declaracion_variable):
       # ASIGNACIÓN VARIABLE: Var {nodo} = {mod}
