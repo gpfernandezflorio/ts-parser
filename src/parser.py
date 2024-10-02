@@ -25,6 +25,7 @@ tokens = (
   'OPERADOR_PREFIJO',
   'OPERADOR_INFIJO',
   'OPERADOR_BINARIO',
+  'PREGUNTA',
   'ITERADOR',
   'MAS',
   'MENOS',
@@ -77,6 +78,7 @@ t_CIERRA_CORCHETE = r'\]'
 t_OPERADOR_PREFIJO = r'!'
 t_OPERADOR_INFIJO = r'\+\+|--'
 t_OPERADOR_BINARIO = r'===|!==|==|!=|>=|<=|>|<|&&|\|\|'
+t_PREGUNTA = r'\?'
 t_MAS = r'\+'
 t_MENOS = r'-'
 t_POR = r'\*'
@@ -249,7 +251,7 @@ def p_declaracion_function_decl(p): # AST_declaracion_funcion
     print("ERROR p_declaracion_function_decl")
     exit(0)
   nombre.clausura(s)
-  p[0] = AST_declaracion_funcion(nombre, rec.parametros, rec.cuerpo)
+  p[0] = AST_declaracion_funcion(nombre, rec.parametros, rec.cuerpo, rec.decoradores)
   p[0].imitarEspacios(rec)
   p[0].clausura(cierre)
 
@@ -262,14 +264,16 @@ def p_declaracion_function_anon(p): # AST_expresion_funcion | AST_invocacion
 
 def p_definicion_funcion(p): # AST_expresion_funcion | AST_invocacion
   '''
-  definicion_funcion : parametros s cuerpo opt_modificador_funcion
+  definicion_funcion : parametros opt_decorador_identificador_tipo cuerpo opt_modificador_funcion
   '''
-  parametros = p[1]       # AST_parametros
-  s = p[2]                # [AST_skippeable]
-  cuerpo = p[3]           # AST_cuerpo
-  modificador = p[4]      # AST_argumentos | [AST_skippeable]
-  parametros.clausura(s)
+  parametros = p[1]                             # AST_parametros
+  opt_tipo = p[2]                               # AST_identificador | None
+  cuerpo = p[3]                                 # AST_cuerpo
+  modificador = p[4]                            # AST_argumentos | [AST_skippeable]
   expresion = AST_expresion_funcion(parametros, cuerpo)
+  if not (opt_tipo is None):
+    decorador = AST_decorador(opt_tipo, False)  # AST_decorador
+    expresion.agregar_decorador(decorador)
   p[0] = aplicarModificador(expresion, modificador)
 
 def p_opt_modificador_funcion_con_skip(p): # AST_argumentos | [AST_skippeable]  {skip, comentario}
@@ -308,15 +312,16 @@ def p_modificador_funcion_modificador_expresion(p): # AST_argumentos
 
 def p_parametros(p): # AST_parametros
   '''
-  parametros : ABRE_PAREN s identificadores CIERRA_PAREN
+  parametros : ABRE_PAREN s identificadores CIERRA_PAREN s
   '''
   abre = AST_sintaxis(p[1])
-  s = concatenar(abre, p[2])  # [AST_skippeable]
-  parametros = p[3]           # [AST_identificador]
-  cierra = AST_sintaxis(p[4])
+  s1 = concatenar(abre, p[2])     # [AST_skippeable]
+  parametros = p[3]               # [AST_identificador]
+  cierra = AST_sintaxis(p[4])     # AST_sintaxis
+  s2 = concatenar(cierra, p[5])   # [AST_skippeable]
   p[0] = AST_parametros(parametros)
-  p[0].apertura(s)
-  p[0].clausura(cierra)
+  p[0].apertura(s1)
+  p[0].clausura(s2)
 
 def p_cuerpo(p): # AST_cuerpo
   '''
@@ -338,12 +343,17 @@ def p_identificadores_vacio(p): # [AST_identificador]
 
 def p_identificadores_no_vacio(p): # [AST_identificador]
   '''
-  identificadores : IDENTIFICADOR s mas_identificadores
+  identificadores : IDENTIFICADOR s opt_decorador_identificador mas_identificadores
   '''
   identificador = AST_identificador(p[1])
   s = p[2]                  # [AST_skippeable]
-  rec = p[3]                # [AST_identificador] | [AST_skippeable]
-  identificador.clausura(s)
+  opt_decorador = p[3]      # AST_decorador | None
+  rec = p[4]                # [AST_identificador] | [AST_skippeable]
+  if opt_decorador is None:
+    identificador.clausura(s)
+  else:
+    opt_decorador.apertura(s)
+    identificador.agregar_decorador(opt_decorador)
   if len(rec) > 0 and type(rec[0]) is AST_identificador:
     rec.insert(0, identificador)
   else:
@@ -370,6 +380,61 @@ def p_mas_identificadores(p): # [AST_identificador] | [AST_skippeable]
     rec = concatenar(s, rec)
   p[0] = rec
 
+def p_opt_decorador_identificador_vacio(p): # None
+  '''
+  opt_decorador_identificador : vacio
+  '''
+  p[0] = None
+
+def p_opt_decorador_identificador_opcional(p): # AST_decorador
+  '''
+  opt_decorador_identificador : PREGUNTA s opt_decorador_identificador_tipo
+  '''
+  r = AST_sintaxis(p[1])                    # AST_sintaxis
+  s = concatenar(r, p[2])                   # [AST_skippeable]
+  opt_tipo = p[3]                           # AST_identificador | None
+  decorador = AST_decorador(opt_tipo, True) # AST_decorador
+  decorador.apertura(s)
+  p[0] = decorador
+
+def p_opt_decorador_identificador_tipo(p): # AST_decorador
+  '''
+  opt_decorador_identificador : decorador_identificador_tipo
+  '''
+  tipo = p[1]                             # AST_identificador
+  decorador = AST_decorador(tipo, False)  # AST_decorador
+  p[0] = decorador
+
+def p_opt_decorador_identificador_tipo_vacio(p): # None
+  '''
+  opt_decorador_identificador_tipo : vacio
+  '''
+  p[0] = None
+
+def p_opt_decorador_identificador_tipo_no_vacio(p): # AST_identificador
+  '''
+  opt_decorador_identificador_tipo : decorador_identificador_tipo
+  '''
+  tipo = p[1] # AST_identificador
+  p[0] = tipo
+
+def p_decorador_identificador_tipo(p): # AST_identificador
+  '''
+  decorador_identificador_tipo : DOS_PUNTOS s tipo
+  '''
+  r = AST_sintaxis(p[1])    # AST_sintaxis
+  s = concatenar(r, p[2])   # [AST_skippeable]
+  tipo = p[3]
+  tipo.apertura(s)
+  p[0] = tipo
+
+def p_tipo(p): # AST_identificador
+  '''
+  tipo : IDENTIFICADOR
+  '''
+  tipo = AST_identificador(p[1])
+  p[0] = tipo
+
 # DECLARACIÓN : VARIABLE (declaración de variable)
  #################################################################################################
 def p_declaracion_var(p): # AST_declaracion_variable
@@ -392,9 +457,14 @@ def p_declaracion_variable(p): # AST_declaracion_variable
 
 def p_identificador_uno(p): # AST_identificador
   '''
-  identificador : IDENTIFICADOR
+  identificador : IDENTIFICADOR opt_decorador_identificador_tipo
   '''
-  p[0] = AST_identificador(p[1])
+  identificador = AST_identificador(p[1])       # AST_identificador
+  opt_tipo = p[2]                               # AST_identificador | None
+  if not (opt_tipo is None):
+    decorador = AST_decorador(opt_tipo, False)  # AST_decorador
+    identificador.agregar_decorador(decorador)
+  p[0] = identificador
 
 def p_identificador_varios(p): # AST_identificadores
   '''
@@ -1460,15 +1530,16 @@ class AST_modificador(AST_nodo):
     self.adicional.append(otro)
 
 class AST_declaracion_funcion(AST_declaracion):
-  def __init__(self, nombre, parametros, cuerpo):
+  def __init__(self, nombre, parametros, cuerpo, decoradores=[]):
     super().__init__()
-    self.nombre = nombre          # AST_identificador
-    self.parametros = parametros  # AST_parametros
-    self.cuerpo = cuerpo          # AST_cuerpo
+    self.nombre = nombre            # AST_identificador
+    self.parametros = parametros    # AST_parametros
+    self.cuerpo = cuerpo            # AST_cuerpo
+    self.decoradores = decoradores  # [AST_decorador]
   def __str__(self):
     return f"DeclaraciónFunción : {show(self.nombre)}"
   def restore(self):
-    return super().restore(f"{restore(self.nombre)}{restore(self.parametros)}{restore(self.cuerpo)}")
+    return super().restore(f"{restore(self.nombre)}{restore(self.parametros)}{restore(self.decoradores)}{restore(self.cuerpo)}")
 
 class AST_cuerpo(AST_declaracion):
   def __init__(self, contenido):
@@ -1515,6 +1586,9 @@ class AST_expresion_funcion(AST_expresion):
     super().__init__()
     self.parametros = parametros  # AST_parametros
     self.cuerpo = cuerpo          # AST_cuerpo
+    self.decoradores = []         # [AST_decorador]
+  def agregar_decorador(self, decorador):
+    self.decoradores.append(decorador)
   def __str__(self):
     return f"FunciónAnónima"
   def restore(self):
@@ -1688,10 +1762,13 @@ class AST_identificador(AST_asignable):
   def __init__(self, identificador):
     super().__init__()
     self.identificador = identificador    # String
+    self.decoradores = []                 # [AST_decorador]
+  def agregar_decorador(self, decorador):
+    self.decoradores.append(decorador)
   def __str__(self):
     return f"{self.identificador}"
   def restore(self):
-    return super().restore(f"{self.identificador}")
+    return super().restore(f"{self.identificador}{restore(self.decoradores)}")
 
 class AST_identificadores(AST_asignable):
   def __init__(self, identificadores):
@@ -1730,16 +1807,24 @@ class AST_modificador_operador(AST_modificador):
   def __init__(self):
     super().__init__()
 
+class AST_decorador(AST_modificador):
+  def __init__(self, opt_tipo, opcional):
+    super().__init__()
+    self.opt_tipo = opt_tipo    # AST_identificador | None
+    self.opcional = opcional    # bool
+  def restore(self):
+    return super().restore(f"{restore(self.opt_tipo)}")
+
 class AST_modificador_operador_binario(AST_modificador_operador):
   def __init__(self, clase, expresion):
+    super().__init__()
     self.clase = clase          # string
     self.expresion = expresion  # AST_expresion
-    super().__init__()
 
 class AST_modificador_operador_posfijo(AST_modificador_operador):
   def __init__(self, clase):
-    self.clase = clase          # string
     super().__init__()
+    self.clase = clase          # string
   def restore(self):
     return super().restore(f"{self.clase}")
 
