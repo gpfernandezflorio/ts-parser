@@ -4,6 +4,10 @@ from my_ply.yacc import yacc
 tokens = (
   'DECL_FUNC',
   'DECL_VAR',
+  'IMPORT',
+  'EXPORT',
+  'FROM',
+  'AS',
   'COMBINADOR',
   'ELSE',
   'IDENTIFICADOR',
@@ -35,6 +39,10 @@ tokens = (
 
 reserved_map = {
   'function':'DECL_FUNC',
+  'import':'IMPORT',
+  'export':'EXPORT',
+  'from':'FROM',
+  'as':'AS',
   'else':'ELSE'
 }
 
@@ -206,13 +214,21 @@ def p_skippeable_no_vacio(p):
     D -> {...}          D_OBJETO      AST_expresion_objeto
     D -> if|for|while   D_COMMAND     AST_combinador
     D -> !|-|++|--      D_PREFIX      AST_operador
+    D -> import         D_IMPORT      AST_import
+    D -> export         D_EXPORT      AST_export
 ''' #################################################################################################
 
 # DECLARACIÓN : FUNCIÓN (declaración de función o función anónima)
  #################################################################################################
 def p_declaracion_function(p): # AST_expresion_funcion | AST_declaracion_funcion | AST_invocacion
   '''
-  declaracion : DECL_FUNC s declaracion_function
+  declaracion : declaracion_de_funcion
+  '''
+  p[0] = p[1]
+
+def p_declaracion_funcion(p): # AST_expresion_funcion | AST_declaracion_funcion | AST_invocacion
+  '''
+  declaracion_de_funcion : DECL_FUNC s funcion_declaracion_o_definicion
   '''
   declarador = AST_sintaxis(p[1])
   s = concatenar(declarador, p[2])      # [AST_skippeable]
@@ -222,7 +238,7 @@ def p_declaracion_function(p): # AST_expresion_funcion | AST_declaracion_funcion
 
 def p_declaracion_function_decl(p): # AST_declaracion_funcion
   '''
-  declaracion_function : IDENTIFICADOR s definicion_funcion opt_cierre
+  funcion_declaracion_o_definicion : IDENTIFICADOR s definicion_funcion opt_cierre
   '''
   nombre = AST_identificador(p[1])
   s = p[2]              # [AST_skippeable]
@@ -239,7 +255,7 @@ def p_declaracion_function_decl(p): # AST_declaracion_funcion
 
 def p_declaracion_function_anon(p): # AST_expresion_funcion | AST_invocacion
   '''
-  declaracion_function : definicion_funcion
+  funcion_declaracion_o_definicion : definicion_funcion
   '''
   rec = p[1]            # AST_expresion_funcion | AST_invocacion
   p[0] = rec
@@ -326,36 +342,45 @@ def p_identificadores_no_vacio(p): # [AST_identificador]
   '''
   identificador = AST_identificador(p[1])
   s = p[2]                  # [AST_skippeable]
-  rec = p[3]                # [AST_identificador]
+  rec = p[3]                # [AST_identificador] | [AST_skippeable]
   identificador.clausura(s)
-  rec.insert(0, identificador)
+  if len(rec) > 0 and type(rec[0]) is AST_identificador:
+    rec.insert(0, identificador)
+  else:
+    identificador.clausura(rec)
+    rec = [identificador]
   p[0] = rec
 
-def p_mas_identificadores_fin(p): # [AST_identificador]
+def p_mas_identificadores_fin(p): # [AST_skippeable]
   '''
   mas_identificadores : vacio
   '''
   p[0] = []
 
-def p_mas_identificadores(p): # [AST_identificador]
+def p_mas_identificadores(p): # [AST_identificador] | [AST_skippeable]
   '''
-  mas_identificadores : COMA s IDENTIFICADOR s mas_identificadores
+  mas_identificadores : COMA s identificadores
   '''
   coma = AST_sintaxis(p[1])
-  s1 = concatenar(coma, p[2]) # [AST_skippeable]
-  identificador = AST_identificador(p[3])
-  s2 = p[4]                   # [AST_skippeable]
-  rec = p[5]                  # [AST_identificador]
-  identificador.apertura(s1)
-  identificador.clausura(s2)
-  rec.insert(0, identificador)
+  s = concatenar(coma, p[2])  # [AST_skippeable]
+  rec = p[3]                  # [AST_identificador] | [AST_skippeable]
+  if len(rec) > 0 and type(rec[0]) is AST_identificador:
+    rec[0].apertura(s)
+  else:
+    rec = concatenar(s, rec)
   p[0] = rec
 
 # DECLARACIÓN : VARIABLE (declaración de variable)
  #################################################################################################
 def p_declaracion_var(p): # AST_declaracion_variable
   '''
-  declaracion : DECL_VAR sf identificador opt_modificador_variable
+  declaracion : declaracion_variable
+  '''
+  p[0] = p[1]
+
+def p_declaracion_variable(p): # AST_declaracion_variable
+  '''
+  declaracion_variable : DECL_VAR sf identificador opt_modificador_variable
   '''
   declarador = AST_sintaxis(p[1])
   s = concatenar(declarador, p[2])        # [AST_skippeable]
@@ -1259,6 +1284,96 @@ def p_expresion_como_comando(p): # AST_expresion
   expresion.clausura(cierre)
   p[0] = expresion
 
+# DECLARACIÓN : IMPORT (import)
+ #################################################################################################
+def p_declaracion_import(p): # AST_import
+  '''
+  declaracion : IMPORT s elementos_a_importar s opt_cierre
+  '''
+  r = AST_sintaxis(p[1])    # AST_sintaxis
+  s = concatenar(r, p[2])   # [AST_skippeable]
+  importar = p[3]           # AST_import
+  importar.apertura(s)
+  s = concatenar(p[4], p[5])
+  importar.clausura(s)
+  p[0] = importar
+
+def p_import_archivo(p): # AST_import
+  '''
+  elementos_a_importar : STRING
+  '''
+  archivo = AST_expresion_literal(p[1])   # AST_expresion_literal
+  p[0] = AST_import(archivo)
+
+def p_import_elementos(p): # AST_import
+  '''
+  elementos_a_importar : importables s opt_importar_como FROM s STRING
+  '''
+  importables = p[1]                      # AST_identificador | AST_identificadores | AST_sintaxis
+  s1 = p[2]                               # [AST_skippeable]
+  opt_alias = p[3]                        # AST_identificador | [AST_skippeable]
+  r = AST_sintaxis(p[4])                  # AST_sintaxis
+  s2 = concatenar(r,p[5])                 # [AST_skippeable]
+  archivo = AST_expresion_literal(p[6])   # AST_expresion_literal
+  importables.clausura(s1)
+  archivo.apertura(s2)
+  p[0] = AST_import(archivo, importables, opt_alias)
+
+def p_imporables_identificador(p): # AST_identificador | AST_identificadores
+  '''
+  importables : identificador
+  '''
+  identificador = p[1] # AST_identificador | AST_identificadores
+  p[0] = identificador
+
+def p_imporables_todo(p): # AST_sintaxis
+  '''
+  importables : POR
+  '''
+  todo = AST_sintaxis(p[1]) # AST_sintaxis
+  p[0] = todo
+
+def p_import_como_alias(p): # AST_identificador
+  '''
+  opt_importar_como : AS s IDENTIFICADOR s
+  '''
+  r = AST_sintaxis(p[1])            # AST_sintaxis
+  s = concatenar(r,p[2])            # [AST_skippeable]
+  alias = AST_identificador(p[3])   # AST_identificador
+  alias.apertura(s)
+  p[0] = alias
+
+def p_import_como_vacio(p): # [AST_skippeable]
+  '''
+  opt_importar_como : vacio
+  '''
+  p[0] = []
+
+# DECLARACIÓN : EXPORT (export)
+ #################################################################################################
+def p_declaracion_export(p): # AST_export
+  '''
+  declaracion : EXPORT s declaracion_o_identificador
+  '''
+  r = AST_sintaxis(p[1])            # AST_sintaxis
+  s = concatenar(r,p[2])            # [AST_skippeable]
+  exportado = p[3]                  # AST_declaracion_variable | AST_identificador | AST_identificadores
+  p[0] = AST_export(p[3])
+  p[0].apertura(s)
+
+def p_export_declaracion(p): # AST_declaracion_variable | AST_expresion_funcion | AST_declaracion_funcion | AST_invocacion
+  '''
+  declaracion_o_identificador : declaracion_variable
+                              | declaracion_de_funcion
+  '''
+  p[0] = p[1]
+
+def p_export_identificador(p): # AST_identificador | AST_identificadores
+  '''
+  declaracion_o_identificador : identificador
+  '''
+  p[0] = p[1]
+
 def p_cierre(p): # [AST_skippeable]
   '''
   cierre : PUNTO_Y_COMA s
@@ -1586,6 +1701,30 @@ class AST_identificadores(AST_asignable):
     return f"{show(self.identificadores)}"
   def restore(self):
     return super().restore(f"{''.join(map(restore, self.identificadores))}")
+
+class AST_import(AST_declaracion):
+  def __init__(self, archivo, importables=None, opt_alias=[]):
+    super().__init__()
+    self.archivo = archivo          # AST_expresion_literal
+    self.importables = importables  # AST_identificador | AST_identificadores | AST_sintaxis | None
+    self.opt_alias = opt_alias      # AST_identificador | [AST_skippeable]
+  def __str__(self):
+    return f"Import {show(self.archivo)}"
+  def restore(self):
+    return super().restore(f"{restore(self.importables)}{restore(self.opt_alias)}{restore(self.archivo)}")
+
+class AST_export(AST_declaracion):
+  def __init__(self, exportable):
+    super().__init__()
+    # Si lo estoy exportando, no debería ser una invocación ni una expresión suelta
+    if type(exportable) is AST_invocacion or type(exportable) is AST_expresion_funcion:
+      print("ERROR p_declaracion_function_decl")
+      exit(0)
+    self.exportable = exportable    # AST_declaracion_variable | AST_declaracion_funcion | AST_identificador | AST_identificadores
+  def __str__(self):
+    return f"Export {show(self.exportable)}"
+  def restore(self):
+    return super().restore(restore(self.exportable))
 
 class AST_modificador_operador(AST_modificador):
   def __init__(self):

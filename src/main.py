@@ -1,16 +1,19 @@
 import sys
 import functools
-from utils import boom, leerArchivo_, existeArchivo_
+from utils import Boom, leerArchivo_, existeArchivo_
 from parser import tokenizar, parsear
 
 def main():
   if len(sys.argv) == 1:
-    boom("No me pasaste ningún archivo")
+    Boom("No me pasaste ningún archivo")
   nombreArchivo = sys.argv[1]
   if not existeArchivo_(nombreArchivo):
-    boom("No existe el archivo " + nombreArchivo)
-  contenido = leerArchivo_(nombreArchivo)
+    Boom("No existe el archivo " + nombreArchivo)
+  parsearArchivo(nombreArchivo)
 
+def parsearArchivo(nombreArchivo):
+  print(nombreArchivo)
+  contenido = leerArchivo_(nombreArchivo)
   tokens = tokenizar(contenido)
   # mostrarTokens(tokens)
   ast = parsear(contenido)
