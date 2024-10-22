@@ -1,0 +1,3 @@
+[submodule "src/bibpy"]
+	path = src/bibpy
+	url = https://github.com/gpfernandezflorio/bibpy.git
