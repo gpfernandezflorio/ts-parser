@@ -100,6 +100,7 @@ def t_error(t):
 
 precedence = (
   ('left', 'VACIO'),
+  ('left', 'PUNTO_Y_COMA'),
   ('left', 'ABRE_PAREN'),
 )
 
@@ -852,11 +853,11 @@ def p_opt_modificador_expresion_con_skip(p): # AST_argumentos | AST_expresion | 
   modificador = p[2]        # AST_argumentos | AST_modificador_objeto | [AST_skippeable]
   p[0] = modificador_con_skip(modificador, s)
 
-def p_opt_modificador_expresion_sin_skip(p): # AST_argumentos | AST_expresion | AST_modificador_objeto | [AST_skippeable]  {(, =, ., [}
+def p_opt_modificador_expresion_sin_skip(p): # AST_argumentos | AST_modificador_operador | AST_modificador_objeto | AST_modificador_comotipo | [AST_skippeable]  {(, =, ., as, [}
   '''
   opt_modificador_expresion : modificador_expresion
   '''
-  modificador_expresion = p[1]    # AST_argumentos | AST_modificador_objeto | [AST_skippeable]
+  modificador_expresion = p[1]    # AST_argumentos | AST_modificador_operador | AST_modificador_objeto | AST_modificador_comotipo | [AST_skippeable]
   p[0] = modificador_expresion
 
 def p_modificador_expresion_vacio(p): # [AST_skippeable]                      {lambda}
@@ -865,7 +866,7 @@ def p_modificador_expresion_vacio(p): # [AST_skippeable]                      {l
   '''
   p[0] = []
 
-def p_modificador_expresion_no_vacio(p): # [AST_skippeable]                      {lambda}
+def p_modificador_expresion_no_vacio(p): # AST_argumentos | AST_modificador_operador | AST_modificador_objeto | AST_modificador_comotipo | [AST_skippeable]
   '''
   modificador_expresion : modificador_expresion_no_vacio
   '''
@@ -888,6 +889,13 @@ def p_modificador_expresion_invocacion(p): # AST_argumentos
 def p_modificador_expresion_operador_binario(p): # AST_modificador_operador
   '''
   modificador_expresion_no_vacio : operador
+  '''
+  modificador = p[1]
+  p[0] = modificador
+
+def p_modificador_expresion_como_tipo(p): # AST_modificador_comotipo
+  '''
+  modificador_expresion_no_vacio : comotipo
   '''
   modificador = p[1]
   p[0] = modificador
@@ -935,6 +943,17 @@ def p_operador_posfijo(p): # string
   '''
   operador = p[1]
   p[0] = operador
+
+def p_comotipo(p): # AST_modificador_comotipo
+  '''
+  comotipo : AS s expresion
+  '''
+  s = AST_sintaxis(p[1])
+  s = concatenar(s, p[2])                             # [AST_skippeable]
+  expresion = p[3]                                    # AST_expresion
+  expresion.apertura(s)
+  modificador = AST_modificador_comotipo(expresion)   # AST_modificador_comotipo
+  p[0] = modificador
 
 def p_invocacion(p): # AST_argumentos
   '''
@@ -986,19 +1005,19 @@ def p_fin_argumentos(p): # AST_argumentos
   '''
   fin_argumentos : CIERRA_PAREN opt_modificador_invocacion
   '''
-  opt_adicional = p[2]
+  opt_adicional = p[2]                      # AST_argumentos | AST_modificador_operador | AST_modificador_objeto | AST_modificador_comotipo | [AST_skippeable]
   p[0] = AST_argumentos()
   p[0].modificador_adicional(opt_adicional)
 
-def p_opt_modificador_invocacion_con_skip(p): # [AST_skippeable] | AST_argumentos | AST_modificador_objeto
+def p_opt_modificador_invocacion_con_skip(p): # AST_argumentos | AST_modificador_operador | AST_modificador_objeto | AST_modificador_comotipo | [AST_skippeable] | [AST_skippeable]
   '''
   opt_modificador_invocacion : sf modificador_invocacion
   '''
   s = p[1]                    # [AST_skippeable]
-  modificador = p[2]          # AST_argumentos | AST_modificador_objeto | [AST_skippeable]
+  modificador = p[2]          # AST_argumentos | AST_modificador_operador | AST_modificador_objeto | AST_modificador_comotipo | [AST_skippeable] | [AST_skippeable]
   p[0] = modificador_con_skip(modificador, s)
 
-def p_opt_modificador_invocacion_sin_skip(p): # AST_argumentos | AST_modificador_objeto
+def p_opt_modificador_invocacion_sin_skip(p): # AST_argumentos | AST_modificador_operador | AST_modificador_objeto | AST_modificador_comotipo | [AST_skippeable]
   '''
   opt_modificador_invocacion : modificador_invocacion
   '''
@@ -1011,25 +1030,25 @@ def p_modificador_invocacion_vacio(p): # [AST_skippeable]
   '''
   p[0] = []
 
-def p_modificador_invocacion_no_vacio(p): # [AST_skippeable]
+def p_modificador_invocacion_no_vacio(p): # AST_argumentos | AST_modificador_operador | AST_modificador_objeto | AST_modificador_comotipo | [AST_skippeable]
   '''
   modificador_invocacion : modificador_invocacion_no_vacio
   '''
   p[0] = p[1]
 
-def p_modificador_invocacion_invocacion(p): # AST_argumentos
+def p_modificador_invocacion_objeto(p): # AST_argumentos | AST_modificador_operador | AST_modificador_objeto | AST_modificador_comotipo | [AST_skippeable]
   '''
-  modificador_invocacion_no_vacio : invocacion
-  '''
-  invocacion = p[1]
-  p[0] = invocacion
-
-def p_modificador_invocacion_objeto(p): # AST_modificador_objeto
-  '''
-  modificador_invocacion_no_vacio : modificador_objeto_expresion_no_vacio
+  modificador_invocacion_no_vacio : modificador_expresion_no_vacio
   '''
   modificador_objeto = p[1]
   p[0] = modificador_objeto
+
+def p_modificador_invocacion_cierre(p): # [AST_skippeable]
+  '''
+  modificador_invocacion : cierre
+  '''
+  cierre = p[1]                    # [AST_skippeable]
+  p[0] = cierre
 
 # DECLARACIÓN : NUMERO
  #################################################################################################
@@ -1844,6 +1863,11 @@ class AST_modificador_operador_binario(AST_modificador_operador):
     self.clase = clase          # string
     self.expresion = expresion  # AST_expresion
 
+class AST_modificador_comotipo(AST_modificador):
+  def __init__(self, expresion):
+    super().__init__()
+    self.expresion = expresion  # AST_expresion
+
 class AST_modificador_operador_posfijo(AST_modificador_operador):
   def __init__(self, clase):
     super().__init__()
@@ -1889,11 +1913,14 @@ def aplicarModificador(nodo, mod):
     # INDEX OBJETO: {nodo} [ {mod} ]
     resultado = AST_expresion_index(nodo, mod)
   elif isinstance(mod, AST_modificador_operador_binario):
-    # OPERACIÓN {nodo} + {mod}
+    # OPERACIÓN: {nodo} + {mod}
     mod.expresion.imitarEspacios(mod)
     resultado = AST_operador(nodo, mod.clase, mod.expresion)
+  elif isinstance(mod, AST_modificador_comotipo):
+    # COMO TIPO: {nodo} as {mod}
+    resultado.clausura(restore(mod))
   elif isinstance(mod, AST_modificador_operador_posfijo):
-    # OPERACIÓN {nodo} {mod}
+    # OPERACIÓN: {nodo} {mod}
     nodo.clausura(mod.restore())
     resultado = AST_operador(nodo, mod.clase, None)
   elif isinstance(mod, AST_argumentos):
