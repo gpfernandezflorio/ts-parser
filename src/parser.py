@@ -98,6 +98,11 @@ def t_error(t):
   t.lexer.skip(1)
   return t
 
+precedence = (
+  ('left', 'VACIO'),
+  ('left', 'ABRE_PAREN'),
+)
+
 def tokenizar(contenido):
   lexer = lex()
   lexer.input(contenido)
@@ -214,6 +219,7 @@ def p_skippeable_no_vacio(p):
     D -> num            D_NUMERO      AST_expresion_literal
     D -> string         D_STRING      AST_expresion_literal
     D -> {...}          D_OBJETO      AST_expresion_objeto
+    D -> (...)          D_PARENT      AST_expresion
     D -> if|for|while   D_COMMAND     AST_combinador
     D -> !|-|++|--      D_PREFIX      AST_operador
     D -> import         D_IMPORT      AST_import
@@ -819,12 +825,20 @@ def p_expresion_objeto(p): # AST_expresion_objeto
 
 def p_expresion_parentesis(p): # AST_expresion
   '''
-  expresion_sin_pre : ABRE_PAREN s expresion CIERRA_PAREN opt_modificador_expresion
+  expresion_sin_pre : expresion_entre_parentesis
+  '''
+  expresion = p[1] # AST_expresion
+  p[0] = p[1]
+
+def p_expresion_entre_parentesis(p): # AST_expresion
+  '''
+  expresion_entre_parentesis : ABRE_PAREN s expresion CIERRA_PAREN opt_modificador_expresion
   '''
   s = AST_sintaxis(p[1])
   s = concatenar(s, p[2])
   expresion = p[3]
-  expresion.conParentesis()
+  if isinstance(expresion, AST_operador):
+    expresion.conParentesis()
   expresion.clausura(p[4])
   modificador_expresion = p[5]      # AST_argumentos | AST_expresion | AST_modificador_objeto | [AST_skippeable]
   expresion.apertura(s)
@@ -1238,6 +1252,15 @@ def p_clave_campo_string(p): # AST_expresion_literal
   clave = AST_expresion_literal(p[1])   # AST_expresion_literal
   p[0] = clave
 
+# DECLARACIÓN : PARENTESIS
+ #################################################################################################
+def p_declaracion_parentesis(p): # AST_expresion
+  '''
+  declaracion : expresion_entre_parentesis
+  '''
+  expresion = p[1] # AST_expresion
+  p[0] = p[1]
+
 # DECLARACIÓN : COMBINADOR (if, for, while)
  #################################################################################################
 def p_declaracion_combinador(p): # AST_combinador
@@ -1460,7 +1483,7 @@ def p_opt_cierre(p): # [AST_skippeable]
   p[0] = p[1]
 
 def p_vacio(p): # [AST_skippeable]
-  'vacio :'
+  'vacio : %prec VACIO'
   p[0] = []
 
 class AST_nodo(object):
