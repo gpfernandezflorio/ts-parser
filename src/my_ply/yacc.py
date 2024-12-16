@@ -500,7 +500,8 @@ class LRParser:
                         if errtoken and not hasattr(errtoken, 'lexer'):
                             errtoken.lexer = lexer
                         self.state = state
-                        tok = self.errorfunc(errtoken)
+                        ## En esta línea se invoca a p_error:
+                        tok = self.errorfunc(errtoken, self)
                         if self.errorok:
                             # User must have done some kind of panic
                             # mode recovery on their own.  The
@@ -2106,10 +2107,11 @@ class ParserReflect(object):
             module = inspect.getmodule(self.error_func)
             self.modules.add(module)
 
-            argcount = self.error_func.__code__.co_argcount - ismethod
-            if argcount != 1:
-                self.log.error('%s:%d: p_error() requires 1 argument', efile, eline)
-                self.error = True
+            # Saco este chequeo para pasarle un segundo argumento a p_error
+            # argcount = self.error_func.__code__.co_argcount - ismethod
+            # if argcount != 1:
+            #     self.log.error('%s:%d: p_error() requires 1 argument', efile, eline)
+            #     self.error = True
 
     # Get the tokens map
     def get_tokens(self):

@@ -1,5 +1,5 @@
 import sys
-from parser import tokenizar, parsear
+from parser import tokenizar, parsear, mostrarAST, mostrarTokens, mostrarDiff
 from parser import token as t
 from parser import AST_espacios as espacios
 from parser import AST_invocacion
@@ -12,6 +12,7 @@ from parser import AST_identificador as identificador
 from parser import AST_expresion_literal as literal
 from parser import AST_declaracion_funcion
 from parser import AST_expresion_funcion
+from parser import AST_funcion_incompleta
 from parser import AST_comentario as comentario
 from parser import AST_modificador_objeto_acceso
 from parser import AST_modificador_objeto_index
@@ -32,7 +33,7 @@ def funcion(nombre, parametros, cuerpo):
   return AST_declaracion_funcion(nombre, parametros, cuerpo)
 
 def abs(parametros=[], cuerpo=None):
-  return AST_expresion_funcion(parametros, cuerpo)
+  return AST_expresion_funcion(AST_funcion_incompleta(parametros, cuerpo))
 
 def acceso(objeto, campo):
   return AST_expresion_acceso(objeto, AST_modificador_objeto_acceso(identificador(campo)))
