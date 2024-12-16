@@ -40,6 +40,10 @@ tokens = (
   'PUNTO_Y_COMA',
   'PUNTO',
   'COMA',
+  # 'FORMAT_STRING_START',
+  # 'FORMAT_STRING_MIDDLE',
+  # 'FORMAT_STRING_END',
+  'FORMAT_STRING_COMPLETE',
   'SKIP'
 )
 
@@ -74,7 +78,7 @@ def t_IDENTIFICADOR(t):
   t.type = reserved_map.get(t.value, "IDENTIFICADOR")
   return t
 t_NUMERO = r'(\d*\.\d+)|\d+'
-t_STRING = r'("[^"]*")|(\'[^\']*\')'
+t_STRING = r'("[^"]*")|(\'[^\']*\')|(`[^`$]*`)'
 t_COMENTARIO_UL = r'//[^\n\r]*'
 def t_COMENTARIO_ML(t):
   r'/\*([^\*]|\*[^/])*\*/'
@@ -100,6 +104,15 @@ t_DOS_PUNTOS = r':'
 t_PUNTO_Y_COMA = r';'
 t_PUNTO = r'\.'
 t_COMA = r','
+# t_FORMAT_STRING_START = r'`[^`$]*${'
+# t_FORMAT_STRING_MIDDLE = r'}[^`$]*${'
+# t_FORMAT_STRING_END = r'}[^`$]*`'
+def t_FORMAT_STRING_COMPLETE(t):
+  r'(`[^`]*`)'
+  t.type = "FORMAT_STRING_COMPLETE"
+  t.lexer.lineno += t.value.count('\n')
+  return t
+
 def t_SKIP(t):
   r'(\ |\t|\n)+'
   t.type = "SKIP"
@@ -235,6 +248,7 @@ def p_skippeable_no_vacio(p):
     D -> id             D_ID          AST_invocacion | AST_asignacion | AST_identificador | AST_expresion_acceso | AST_expresion_index
     D -> num            D_NUMERO      AST_expresion_literal
     D -> string         D_STRING      AST_expresion_literal
+    D -> `...`          D_STRING      AST_format_string
     D -> {...}          D_OBJETO      AST_expresion_objeto
     D -> (...)          D_PARENT      AST_expresion
     D -> if|for|while   D_COMMAND     AST_combinador
@@ -691,6 +705,14 @@ def p_expresion_asignada_literal(p): # AST_expresion_literal | # AST_expresion (
   modificador_expresion = p[2]          # AST_argumentos | AST_expresion | AST_modificador_objeto | [AST_skippeable]
   p[0] = aplicarModificador(literal, modificador_expresion)
 
+def p_expresion_asignada_format_string(p): # AST_format_string | AST_expresion (_invocacion, _acceso, _index, ...)
+  '''
+  expresion_asignada : format_string opt_modificador_expresion_asignada
+  '''
+  format_string = p[1]              # AST_format_string
+  modificador_expresion = p[2]      # AST_argumentos | AST_expresion | AST_modificador_objeto | [AST_skippeable]
+  p[0] = aplicarModificador(format_string, modificador_expresion)
+
 def p_expresion_asignada_identificador(p): # AST_expresion (_invocacion, _acceso, _index, ...)
   '''
   expresion_asignada : IDENTIFICADOR opt_modificador_expresion_asignada
@@ -849,6 +871,14 @@ def p_expresion_literal(p): # AST_expresion_literal | AST_expresion (_invocacion
   literal = AST_expresion_literal(p[1]) # AST_expresion_literal
   modificador_expresion = p[2]          # AST_argumentos | AST_expresion | AST_modificador_objeto | [AST_skippeable]
   p[0] = aplicarModificador(literal, modificador_expresion)
+
+def p_expresion_format_string(p): # AST_format_string | AST_expresion (_invocacion, _acceso, _index, ...)
+  '''
+  expresion_sin_pre : format_string opt_modificador_expresion
+  '''
+  format_string = p[1]              # AST_format_string
+  modificador_expresion = p[2]      # AST_argumentos | AST_expresion | AST_modificador_objeto | [AST_skippeable]
+  p[0] = aplicarModificador(format_string, modificador_expresion)
 
 def p_expresion_identificador(p): # AST_expresion (_invocacion, _acceso, _index, ...)
   '''
@@ -1168,6 +1198,61 @@ def p_declaracion_string(p): # AST_expresion_literal
   modificador = p[2]                      # [AST_skippeable] | AST_modificador_objeto | AST_argumentos
   p[0] = aplicarModificador(literal, modificador)
 
+# DECLARACIÓN : format_string
+ #################################################################################################
+def p_declaracion_format_string(p): # AST_format_string
+  '''
+  declaracion : format_string opt_modificador_objeto_comando
+  '''
+  format_string = p[1]            # AST_format_string
+  modificador = p[2]              # [AST_skippeable] | AST_modificador_objeto | AST_argumentos
+  p[0] = aplicarModificador(format_string, modificador)
+
+# TODO: Esta debería reemplazarla por las próximas 3 pero no estaría pudiendo definir los tokens correctamente.
+  # Creo que voy a tener que dejarlo así y hacer una segunda pasada para parsear el contenido interno.
+def p_format_string_empty(p): # AST_expresion_literal
+  '''
+  format_string : FORMAT_STRING_COMPLETE
+  '''
+  p[0] = AST_sintaxis(p[1])
+
+# def p_format_string_start(p): # AST_format_string
+#   '''
+#   format_string : FORMAT_STRING_START expresion format_string_next
+#   '''
+#   s = AST_sintaxis(p[1])    # AST_sintaxis
+#   expresion = p[2]          # AST_expresion
+#   rec = p[3]                # [AST_expresion] | AST_sintaxis
+#   expresion.apertura(s)
+#   if type(rec) is AST_sintaxis:
+#     expresion.clausura(rec)
+#     rec = [expresion]
+#   else:
+#     rec = concatenar(expresion, rec)
+#   p[0] = AST_format_string(rec)
+
+# def p_format_string_end(p): # AST_sintaxis
+#   '''
+#   format_string_next : FORMAT_STRING_END
+#   '''
+#   s = AST_sintaxis(p[1])    # AST_sintaxis
+#   p[0] = p[1]
+
+# def p_format_string_next(p): # [AST_expresion]
+#   '''
+#   format_string_next : FORMAT_STRING_MIDDLE expresion format_string_next
+#   '''
+#   s = AST_sintaxis(p[1])    # AST_sintaxis
+#   expresion = p[2]          # AST_expresion
+#   rec = p[3]                # [AST_expresion] | AST_sintaxis
+#   expresion.apertura(s)
+#   if type(rec) is AST_sintaxis:
+#     expresion.clausura(rec)
+#     rec = [expresion]
+#   else:
+#     rec = concatenar(expresion, rec)
+#   p[0] = rec
+
 # DECLARACIÓN : OBJETO (no es asignable pero se vuelve asignable al accederlo o indexarlo)
  #################################################################################################
 def p_declaracion_objeto(p): # AST_expresion_objeto
@@ -1323,6 +1408,13 @@ def p_clave_campo_string(p): # AST_expresion_literal
   clave_campo : STRING
   '''
   clave = AST_expresion_literal(p[1])   # AST_expresion_literal
+  p[0] = clave
+
+def p_clave_campo_format_string(p): # AST_format_string
+  '''
+  clave_campo : format_string
+  '''
+  clave = p[1]      # AST_format_string
   p[0] = clave
 
 # DECLARACIÓN : PARENTESIS
@@ -2277,6 +2369,13 @@ class AST_modificador_declaracion_extension(AST_modificador_declaracion):
     self.nombre = nombre
   def restore(self):
     return super().restore(f"{restore(self.nombre)}")
+
+class AST_format_string(AST_expresion):
+  def __init__(self, elementos):
+    super().__init__()
+    self.elementos = elementos    # [AST_expresion]
+  def restore(self):
+    return super().restore(f"{''.join(map(restore, self.elementos))}")
 
 def modificador_con_skip(modificador, s):
   if type(modificador) == type([]):
