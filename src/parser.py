@@ -4,6 +4,7 @@ from my_ply.yacc import yacc
 tokens = (
   'DECL_FUNC',
   'DECL_VAR',
+  'DECL_CLASS',
   'IMPORT',
   'EXPORT',
   'FROM',
@@ -31,6 +32,8 @@ tokens = (
   'MENOS',
   'POR',
   'DIV',
+  'PRE_MOD_UNARIO',
+  'IMPLEMENTS',
   'DOS_PUNTOS',
   'PUNTO_Y_COMA',
   'PUNTO',
@@ -40,11 +43,14 @@ tokens = (
 
 reserved_map = {
   'function':'DECL_FUNC',
+  'class':'DECL_CLASS',
   'import':'IMPORT',
   'export':'EXPORT',
   'from':'FROM',
   'as':'AS',
-  'else':'ELSE'
+  'else':'ELSE',
+  'abstract':'ABSTRACT',
+  'implements':'IMPLEMENTS'
 }
 
 for k in ['let','const','var']:
@@ -55,6 +61,9 @@ for k in ['if','for','while']:
 
 for k in ['in','of']:
   reserved_map[k] = 'ITERADOR'
+
+for k in ['abstract','static','private','protected','readonly']:
+  reserved_map[k] = 'PRE_MOD_UNARIO'
 
 def t_IDENTIFICADOR(t):
   r'[A-Za-z_][\w_]*'
@@ -140,7 +149,7 @@ def p_error(p):
   if p is None:
     print('EoF')
   else:
-    print(f'Error en línea {p.lineno} {p.value!r}')
+    print(f'Error en línea {p.lineno}, columna {p.colno} {p.value!r}')
   exit(1)
 
 # PROGRAMA : [AST_nodo] #############################################################################
@@ -225,6 +234,10 @@ def p_skippeable_no_vacio(p):
     D -> !|-|++|--      D_PREFIX      AST_operador
     D -> import         D_IMPORT      AST_import
     D -> export         D_EXPORT      AST_export
+    D -> class          D_CLASS       AST_declaracion_clase
+    D -> static | readonly | abstract | private | protected ...
+                        es una declaración pero todavía no sé de qué
+                                      AST_declaracion_funcion | AST_declaracion_variable | AST_declaracion_clase
 ''' #################################################################################################
 
 # DECLARACIÓN : FUNCIÓN (declaración de función o función anónima)
@@ -1469,22 +1482,140 @@ def p_declaracion_export(p): # AST_export
   '''
   r = AST_sintaxis(p[1])            # AST_sintaxis
   s = concatenar(r,p[2])            # [AST_skippeable]
-  exportado = p[3]                  # AST_declaracion_variable | AST_identificador | AST_identificadores
+  exportado = p[3]                  # AST_declaracion_variable | AST_expresion_funcion | AST_declaracion_funcion | AST_invocacion | AST_declaracion_clase | AST_identificador | AST_identificadores
   p[0] = AST_export(p[3])
   p[0].apertura(s)
 
-def p_export_declaracion(p): # AST_declaracion_variable | AST_expresion_funcion | AST_declaracion_funcion | AST_invocacion
+def p_export_declaracion(p): # AST_declaracion_variable | AST_expresion_funcion | AST_declaracion_funcion | AST_invocacion | AST_declaracion_clase
   '''
   declaracion_o_identificador : declaracion_variable
                               | declaracion_de_funcion
+                              | declaracion_de_clase
+                              | declaracion_otro
   '''
   p[0] = p[1]
 
-def p_export_identificador(p): # AST_identificador | AST_identificadores
+def p_export_identificador(p): # AST_identificador | AST_identificadores | AST_asignacion
   '''
-  declaracion_o_identificador : identificador
+  declaracion_o_identificador : identificador opt_modificador_identificador
+  '''
+  identificador = p[1]
+  modificador = p[2]
+  p[0] = aplicarModificador(identificador, modificador)
+
+def p_opt_modificador_identificador_con_skip(p):
+  '''
+  opt_modificador_identificador : sf modificador_identificador
+  '''
+  s = p[1]
+  modificador = p[2]
+  modificador.apertura(s)
+  p[0] = modificador
+
+def p_opt_modificador_identificador_sin_skip(p):
+  '''
+  opt_modificador_identificador : modificador_identificador
   '''
   p[0] = p[1]
+
+def p_modificador_identificador_vacio(p):
+  '''
+  modificador_identificador : vacio
+  '''
+  p[0] = p[1]
+
+def p_modificador_identificador_cierre(p):
+  '''
+  modificador_identificador : cierre
+  '''
+  p[0] = p[1]
+
+def p_modificador_identificador_no_vacio(p):
+  '''
+  modificador_identificador : asignacion
+  '''
+  p[0] = p[1]
+
+# DECLARACIÓN : CLASS (class)
+ #################################################################################################
+def p_declaracion_clase(p): # AST_declaracion_clase
+  '''
+  declaracion : declaracion_de_clase
+  '''
+  p[0] = p[1]
+
+def p_declaracion_de_clase(p): # AST_declaracion_clase
+  '''
+  declaracion_de_clase : DECL_CLASS s IDENTIFICADOR s opt_declaracion_post_mods cuerpo
+  '''
+  s1 = AST_sintaxis(p[1])           # AST_sintaxis
+  s1 = concatenar(s1, p[2])         # [AST_sintaxis]
+  nombre = AST_identificador(p[3])  # AST_identificador
+  s2 = p[4]                         # [AST_skippeable]
+  post_mods = p[5]                  # [AST_modificador_declaracion]
+  definicion = p[6]                 # AST_cuerpo
+  nombre.apertura(s1)
+  nombre.clausura(s2)
+  p[0] = AST_declaracion_clase(nombre, definicion, post_mods)
+
+def p_opt_declaracion_post_mods_vacio(p): # [AST_modificador_declaracion]
+  '''
+  opt_declaracion_post_mods : vacio
+  '''
+  p[0] = []
+
+def p_opt_declaracion_post_mods_implements(p): # [AST_modificador_declaracion]
+  '''
+  opt_declaracion_post_mods : IMPLEMENTS s IDENTIFICADOR s opt_declaracion_pre_mods
+  '''
+  implements = AST_sintaxis(p[1])   # AST_sintaxis
+  s1 = concatenar(implements, p[2]) # [AST_skippeable]
+  nombre = AST_identificador(p[3])  # AST_identificador
+  s2 = p[4]                         # [AST_skippeable]
+  rec = p[5]                        # [AST_modificador_declaracion]
+  nombre.apertura(s1)
+  nombre.clausura(s2)
+  implementacion = AST_modificador_declaracion_implementacion(nombre)
+  p[0] = concatenar(implementacion, rec)
+
+# DECLARACIÓN : ? (static | readonly | abstract | private | protected ...)
+ #################################################################################################
+def p_declaracion_otra_declaracion(p): # AST_declaracion_variable | AST_expresion_funcion | AST_declaracion_funcion | AST_invocacion | AST_declaracion_clase
+  '''
+  declaracion : declaracion_otro
+  '''
+  p[0] = p[1]
+
+def p_declaracion_otro(p): # AST_declaracion_variable | AST_expresion_funcion | AST_declaracion_funcion | AST_invocacion | AST_declaracion_clase
+  '''
+  declaracion_otro : PRE_MOD_UNARIO s opt_declaracion_pre_mods declaracion_o_identificador
+  '''
+  unario = AST_identificador(p[1])  # AST_identificador
+  s = p[2]                          # [AST_skippeable]
+  rec = p[3]                        # [AST_modificador_declaracion]
+  declaracion = p[4]                # AST_declaracion_variable | AST_expresion_funcion | AST_declaracion_funcion | AST_invocacion | AST_declaracion_clase
+  unario.clausura(s)
+  unario = AST_modificador_declaracion_unario(unario)
+  modificadores = concatenar(unario, rec)
+  declaracion.modificadores_pre(modificadores)
+  p[0] = declaracion
+
+def p_opt_declaracion_pre_mods_vacio(p): # [AST_modificador_declaracion]
+  '''
+  opt_declaracion_pre_mods : vacio
+  '''
+  p[0] = []
+
+def p_opt_declaracion_pre_mods_abstract(p): # [AST_modificador_declaracion]
+  '''
+  opt_declaracion_pre_mods : PRE_MOD_UNARIO s opt_declaracion_pre_mods
+  '''
+  unario = AST_identificador(p[1])  # AST_identificador
+  s = p[2]                          # [AST_skippeable]
+  rec = p[3]                        # [AST_modificador_declaracion]
+  unario.clausura(s)
+  unario = AST_modificador_declaracion_unario(unario)
+  p[0] = concatenar(unario, rec)
 
 def p_cierre(p): # [AST_skippeable]
   '''
@@ -1509,9 +1640,12 @@ class AST_nodo(object):
   def __init__(self):
     self.cierra = []
     self.abre = []
+    self.pre_mods = [] # TODO: Ver si esto (y la función modificadores_pre) tiene sentido que esté acá o dónde (debería aplicar únicamente a las declaraciones, creo)
   def imitarEspacios(self, otro):
     self.abre = otro.abre + self.abre
     self.cierra = self.cierra + otro.cierra
+  def modificadores_pre(self, modificadores):
+    self.pre_mods = modificadores
   def apertura(self, c):
     if c is None:
       return
@@ -1582,6 +1716,17 @@ class AST_declaracion_funcion(AST_declaracion):
     return f"DeclaraciónFunción : {show(self.nombre)}"
   def restore(self):
     return super().restore(f"{restore(self.nombre)}{restore(self.parametros)}{restore(self.decoradores)}{restore(self.cuerpo)}")
+
+class AST_declaracion_clase():
+  def __init__(self, nombre, definicion, post_mods):
+    super().__init__()
+    self.nombre = nombre            # AST_identificador
+    self.definicion = definicion    # AST_cuerpo
+    self.post_mods = post_mods      # [AST_modificador_declaracion]
+  def __str__(self):
+    return f"Declaración clase : {show(self.nombre)}"
+  def restore(self):
+    return super().restore(f"{restore(self.pre_mods)}{restore(self.nombre)}{restore(self.post_mods)}{restore(self.definicion)}")
 
 class AST_cuerpo(AST_declaracion):
   def __init__(self, contenido):
@@ -1893,6 +2038,24 @@ class AST_iterador(AST_modificador):
   def __init__(self, expresion):
     super().__init__()
     self.expresion = expresion    # AST_expresion
+
+class AST_modificador_declaracion(AST_modificador):
+  def __init__(self):
+    super().__init__()
+
+class AST_modificador_declaracion_unario(AST_modificador_declaracion):
+  def __init__(self, nombre):
+    super().__init__()
+    self.nombre = nombre
+  def restore(self):
+    return super().restore(f"{restore(self.nombre)}")
+
+class AST_modificador_declaracion_implementacion(AST_modificador_declaracion):
+  def __init__(self, nombre):
+    super().__init__()
+    self.nombre = nombre
+  def restore(self):
+    return super().restore(f"{restore(self.nombre)}")
 
 def modificador_con_skip(modificador, s):
   if type(modificador) == type([]):
