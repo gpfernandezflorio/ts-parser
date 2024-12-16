@@ -35,6 +35,7 @@ tokens = (
   'PRE_MOD_UNARIO',
   'IMPLEMENTS',
   'EXTENDS',
+  'NEW',
   'DOS_PUNTOS',
   'PUNTO_Y_COMA',
   'PUNTO',
@@ -52,7 +53,8 @@ reserved_map = {
   'else':'ELSE',
   'abstract':'ABSTRACT',
   'implements':'IMPLEMENTS',
-  'extends':'EXTENDS'
+  'extends':'EXTENDS',
+  'new':'NEW'
 }
 
 for k in ['let','const','var']:
@@ -368,9 +370,24 @@ def p_identificadores_vacio(p): # [AST_identificador]
   '''
   p[0] = []
 
-def p_identificadores_no_vacio(p): # [AST_identificador]
+def p_identificadores_con_mod_pre_decl(p): # [AST_identificador]
   '''
-  identificadores : IDENTIFICADOR s opt_decorador_identificador mas_identificadores
+  identificadores : modificador_pre_decl_no_vacio primer_identificador
+  '''
+  modificadores = p[1]    # [AST_modificador_declaracion]
+  identificadores = p[2]  # [AST_identificador]
+  identificadores[0].modificadores_pre(modificadores)
+  p[0] = identificadores
+
+def p_identificadores_sin_mod_pre_decl(p): # [AST_identificador]
+  '''
+  identificadores : primer_identificador
+  '''
+  p[0] = p[1]
+
+def p_identificadores_primer_identificador(p): # [AST_identificador]
+  '''
+  primer_identificador : IDENTIFICADOR s opt_decorador_identificador mas_identificadores
   '''
   identificador = AST_identificador(p[1])
   s = p[2]                  # [AST_skippeable]
@@ -696,6 +713,19 @@ def p_expresion_asignada_funcion(p): # AST_expresion_funcion | AST_invocacion
   if type(rec) is AST_funcion_incompleta:
     rec = AST_expresion_funcion(rec)
   p[0] = rec
+
+def p_expresion_asignada_funcion_new(p): # AST_invocacion
+  '''
+  expresion_asignada : NEW s IDENTIFICADOR s invocacion
+  '''
+  new = AST_sintaxis(p[1])                  # AST_sintaxis
+  s1 = concatenar(new, p[2])                # [AST_skippeable]
+  identificador = AST_identificador(p[3])   # AST_identificador
+  s2 = p[4]                                 # [AST_skippeable]
+  argumentos = p[5]                         # AST_argumentos
+  identificador.apertura(s1)
+  identificador.clausura(s1)
+  p[0] = aplicarModificador(identificador, argumentos)
 
 def p_expresion_asignada_objeto(p): # AST_expresion_objeto
   '''
