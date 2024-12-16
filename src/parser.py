@@ -444,6 +444,17 @@ def p_opt_decorador_identificador_vacio(p): # None
   '''
   p[0] = None
 
+def p_opt_decorador_identificador_default(p): # AST_decorador
+  '''
+  opt_decorador_identificador : ASIGNACION s expresion_asignada
+  '''
+  s = AST_sintaxis(p[1])                    # AST_sintaxis
+  s = concatenar(s, p[2])                   # [AST_skippeable]
+  expresion = p[3]                          # AST_expresion
+  decorador = AST_decorador(expresion, False) # AST_decorador
+  decorador.apertura(s)
+  p[0] = decorador
+
 def p_opt_decorador_identificador_opcional(p): # AST_decorador
   '''
   opt_decorador_identificador : PREGUNTA s opt_decorador_identificador_tipo
@@ -2314,12 +2325,12 @@ class AST_funcion_incompleta(AST_modificador):
     self.decoradores.append(decorador)
 
 class AST_decorador(AST_modificador):
-  def __init__(self, opt_tipo, opcional):
+  def __init__(self, opt_tipo_o_default, opcional):
     super().__init__()
-    self.opt_tipo = opt_tipo    # AST_identificador | None
-    self.opcional = opcional    # bool
+    self.opt_tipo_o_default = opt_tipo_o_default    # AST_identificador | AST_expresion | None
+    self.opcional = opcional                        # bool
   def restore(self):
-    return super().restore(f"{restore(self.opt_tipo)}")
+    return super().restore(f"{restore(self.opt_tipo_o_default)}")
 
 class AST_modificador_operador_binario(AST_modificador_operador):
   def __init__(self, clase, expresion):
