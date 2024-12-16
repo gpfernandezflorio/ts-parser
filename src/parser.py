@@ -1075,14 +1075,12 @@ def p_mas_argumentos_fin(p): # AST_argumentos
 
 def p_mas_argumentos(p): # AST_argumentos
   '''
-  mas_argumentos : COMA s expresion mas_argumentos
+  mas_argumentos : COMA s argumentos
   '''
   coma = AST_sintaxis(p[1])
   s = concatenar(coma, p[2])  # [AST_skippeable]
-  expresion = p[3]            # AST_expresion
-  argumentos = p[4]               # AST_argumentos
-  expresion.apertura(s)
-  argumentos.agregar_argumento(expresion)
+  argumentos = p[3]           # AST_argumentos
+  argumentos.apertura_temporal(s)
   p[0] = argumentos
 
 def p_fin_argumentos(p): # AST_argumentos
@@ -2229,8 +2227,23 @@ class AST_argumentos(AST_modificador):
   def __init__(self):
     super().__init__()
     self.lista = []  # [AST_expresion]
+    self.tmp = None
   def agregar_argumento(self, arg):
+    if not (self.tmp is None):
+      arg.apertura(self.tmp)
+      self.tmp = None
     self.lista.insert(0, arg)
+  def apertura_temporal(self, s):
+    if len(self.lista) > 0:
+      self.lista[0].apertura(s)
+    elif self.tmp is None:
+      self.tmp = s
+    else:
+      self.tmp = concatenar(s, self.tmp)
+  def apertura(self, s):
+    if not (self.tmp is None):
+      s = concatenar(s, self.tmp)
+    super().apertura(s)
   def cantidad(self):
     return len(self.lista)
   def __str__(self):
