@@ -40,9 +40,6 @@ tokens = (
   'PUNTO_Y_COMA',
   'PUNTO',
   'COMA',
-  # 'FORMAT_STRING_START',
-  # 'FORMAT_STRING_MIDDLE',
-  # 'FORMAT_STRING_END',
   'FORMAT_STRING_COMPLETE',
   'SKIP'
 )
@@ -104,9 +101,6 @@ t_DOS_PUNTOS = r':'
 t_PUNTO_Y_COMA = r';'
 t_PUNTO = r'\.'
 t_COMA = r','
-# t_FORMAT_STRING_START = r'`[^`$]*${'
-# t_FORMAT_STRING_MIDDLE = r'}[^`$]*${'
-# t_FORMAT_STRING_END = r'}[^`$]*`'
 def t_FORMAT_STRING_COMPLETE(t):
   r'(`[^`]*`)'
   t.type = "FORMAT_STRING_COMPLETE"
@@ -307,16 +301,20 @@ def p_declaracion_function_anon(p): # AST_funcion_incompleta | AST_invocacion
 
 def p_definicion_funcion(p): # AST_funcion_incompleta | AST_invocacion
   '''
-  definicion_funcion : parametros opt_decorador_identificador_tipo cuerpo opt_modificador_funcion
+  definicion_funcion : parametros s opt_decorador_identificador_tipo cuerpo opt_modificador_funcion
   '''
   parametros = p[1]                             # AST_parametros
-  opt_tipo = p[2]                               # AST_identificador | None
-  cuerpo = p[3]                                 # AST_cuerpo
-  modificador = p[4]                            # AST_argumentos | [AST_skippeable]
+  s = p[2]                                      # [AST_skippeable]
+  opt_tipo = p[3]                               # AST_identificador | [AST_skippeable]
+  cuerpo = p[4]                                 # AST_cuerpo
+  modificador = p[5]                            # AST_argumentos | [AST_skippeable]
+  parametros.clausura(s)
   expresion = AST_funcion_incompleta(parametros, cuerpo)
-  if not (opt_tipo is None):
+  if type(opt_tipo) is AST_identificador:
     decorador = AST_decorador(opt_tipo, False)  # AST_decorador
     expresion.agregar_decorador(decorador)
+  else:
+    parametros.clausura(opt_tipo)
   p[0] = aplicarModificador(expresion, modificador)
 
 def p_opt_modificador_funcion_con_skip(p): # AST_argumentos | [AST_skippeable]  {skip, comentario}
@@ -355,16 +353,15 @@ def p_modificador_funcion_modificador_expresion(p): # AST_argumentos
 
 def p_parametros(p): # AST_parametros
   '''
-  parametros : ABRE_PAREN s identificadores CIERRA_PAREN s
+  parametros : ABRE_PAREN s identificadores CIERRA_PAREN
   '''
   abre = AST_sintaxis(p[1])
   s1 = concatenar(abre, p[2])     # [AST_skippeable]
   parametros = p[3]               # [AST_identificador]
   cierra = AST_sintaxis(p[4])     # AST_sintaxis
-  s2 = concatenar(cierra, p[5])   # [AST_skippeable]
   p[0] = AST_parametros(parametros)
   p[0].apertura(s1)
-  p[0].clausura(s2)
+  p[0].clausura(cierra)
 
 def p_cuerpo(p): # AST_cuerpo
   '''
@@ -401,17 +398,15 @@ def p_identificadores_sin_mod_pre_decl(p): # [AST_identificador]
 
 def p_identificadores_primer_identificador(p): # [AST_identificador]
   '''
-  primer_identificador : IDENTIFICADOR s opt_decorador_identificador mas_identificadores
+  primer_identificador : IDENTIFICADOR opt_decorador_identificador mas_identificadores
   '''
   identificador = AST_identificador(p[1])
-  s = p[2]                  # [AST_skippeable]
-  opt_decorador = p[3]      # AST_decorador | None
-  rec = p[4]                # [AST_identificador] | [AST_skippeable]
-  if opt_decorador is None:
-    identificador.clausura(s)
-  else:
-    opt_decorador.apertura(s)
+  opt_decorador = p[2]      # AST_decorador | [AST_skippeable]
+  rec = p[3]                # [AST_identificador] | [AST_skippeable]
+  if type(opt_decorador) is AST_decorador:
     identificador.agregar_decorador(opt_decorador)
+  else:
+    identificador.clausura(opt_decorador)
   if len(rec) > 0 and type(rec[0]) is AST_identificador:
     rec.insert(0, identificador)
   else:
@@ -438,15 +433,35 @@ def p_mas_identificadores(p): # [AST_identificador] | [AST_skippeable]
     rec = concatenar(s, rec)
   p[0] = rec
 
-def p_opt_decorador_identificador_vacio(p): # None
+def p_opt_decorador_identificador_con_skip(p): # AST_decorador | [AST_skippeable]
   '''
-  opt_decorador_identificador : vacio
+  opt_decorador_identificador : sf decorador_identificador
   '''
-  p[0] = None
+  s = p[1]                  # [AST_skippeable]
+  decorador = p[2]          # AST_decorador | [AST_skippeable]
+  p[0] = modificador_con_skip(decorador, s)
+
+def p_opt_decorador_identificador_sin_skip(p): # AST_decorador | [AST_skippeable]
+  '''
+  opt_decorador_identificador : decorador_identificador
+  '''
+  p[0] = p[1]
+
+def p_decorador_identificador_vacio(p): # [AST_skippeable]
+  '''
+  decorador_identificador : vacio
+  '''
+  p[0] = p[1]
+
+def p_decorador_identificador_no_vacio(p): # AST_decorador
+  '''
+  decorador_identificador : decorador_identificador_no_vacio
+  '''
+  p[0] = p[1]
 
 def p_opt_decorador_identificador_default(p): # AST_decorador
   '''
-  opt_decorador_identificador : ASIGNACION s expresion_asignada
+  decorador_identificador_no_vacio : ASIGNACION s expresion_asignada
   '''
   s = AST_sintaxis(p[1])                    # AST_sintaxis
   s = concatenar(s, p[2])                   # [AST_skippeable]
@@ -457,43 +472,63 @@ def p_opt_decorador_identificador_default(p): # AST_decorador
 
 def p_opt_decorador_identificador_opcional(p): # AST_decorador
   '''
-  opt_decorador_identificador : PREGUNTA s opt_decorador_identificador_tipo
+  decorador_identificador_no_vacio : PREGUNTA s opt_decorador_identificador_tipo
   '''
-  r = AST_sintaxis(p[1])                    # AST_sintaxis
-  s = concatenar(r, p[2])                   # [AST_skippeable]
-  opt_tipo = p[3]                           # AST_identificador | None
-  decorador = AST_decorador(opt_tipo, True) # AST_decorador
+  s = AST_sintaxis(p[1])                    # AST_sintaxis
+  s = concatenar(s, p[2])                   # [AST_skippeable]
+  opt_tipo = p[3]                           # AST_identificador | [AST_skippeable]
+  tipo = None
+  s = opt_tipo
+  if type(opt_tipo) is AST_identificador:
+    tipo = opt_tipo
+    s = []
+  decorador = AST_decorador(tipo, True)  # AST_decorador
   decorador.apertura(s)
   p[0] = decorador
 
 def p_opt_decorador_identificador_tipo(p): # AST_decorador
   '''
-  opt_decorador_identificador : decorador_identificador_tipo
+  decorador_identificador_no_vacio : decorador_identificador_tipo_no_vacio
   '''
   tipo = p[1]                             # AST_identificador
   decorador = AST_decorador(tipo, False)  # AST_decorador
   p[0] = decorador
 
-def p_opt_decorador_identificador_tipo_vacio(p): # None
-  '''
-  opt_decorador_identificador_tipo : vacio
-  '''
-  p[0] = None
+# Por alguna razón, esta rompe todo. Creo que tiene algo que ver con que empiece con skip así que en lugar
+  # de usar esta, agrego espacios opcionales antes de cada uso
+# def p_opt_decorador_identificador_tipo_con_skip(p): # AST_identificador | [AST_skippeable]
+#   '''
+#   opt_decorador_identificador_tipo : sf decorador_identificador_tipo
+#   '''
+#   s = p[1]                  # [AST_skippeable]
+#   decorador = p[2]          # AST_identificador | [AST_skippeable]
+#   p[0] = modificador_con_skip(decorador, s)
 
-def p_opt_decorador_identificador_tipo_no_vacio(p): # AST_identificador
+def p_opt_decorador_identificador_tipo_sin_skip(p): # AST_identificador | [AST_skippeable]
   '''
   opt_decorador_identificador_tipo : decorador_identificador_tipo
   '''
-  tipo = p[1] # AST_identificador
-  p[0] = tipo
+  p[0] = p[1]
+
+def p_decorador_identificador_tipo_vacio(p): # [AST_skippeable]
+  '''
+  decorador_identificador_tipo : vacio
+  '''
+  p[0] = p[1]
+
+def p_decorador_identificador_tipo_no_vacio(p): # AST_identificador
+  '''
+  decorador_identificador_tipo : decorador_identificador_tipo_no_vacio
+  '''
+  p[0] = p[1]
 
 def p_decorador_identificador_tipo(p): # AST_identificador
   '''
-  decorador_identificador_tipo : DOS_PUNTOS s tipo
+  decorador_identificador_tipo_no_vacio : DOS_PUNTOS s tipo
   '''
   r = AST_sintaxis(p[1])    # AST_sintaxis
   s = concatenar(r, p[2])   # [AST_skippeable]
-  tipo = p[3]
+  tipo = p[3]               # AST_identificador
   tipo.apertura(s)
   p[0] = tipo
 
@@ -529,10 +564,12 @@ def p_identificador_uno(p): # AST_identificador
   identificador : IDENTIFICADOR opt_decorador_identificador_tipo
   '''
   identificador = AST_identificador(p[1])       # AST_identificador
-  opt_tipo = p[2]                               # AST_identificador | None
-  if not (opt_tipo is None):
+  opt_tipo = p[2]                               # AST_identificador | [AST_skippeable]
+  if type(opt_tipo) is AST_identificador:
     decorador = AST_decorador(opt_tipo, False)  # AST_decorador
     identificador.agregar_decorador(decorador)
+  else:
+    identificador.clausura(opt_tipo)
   p[0] = identificador
 
 def p_identificador_varios(p): # AST_identificadores
@@ -553,7 +590,7 @@ def p_opt_modificador_variable_con_skip(p): # AST_expresion         {skip, comen
   '''
   s = p[1]                  # [AST_skippeable]
   modificador = p[2]        # AST_expresion | [AST_skippeable]
-  p[0] = p[0] = modificador_con_skip(modificador, s)
+  p[0] = modificador_con_skip(modificador, s)
 
 def p_opt_modificador_variable_sin_skip(p): # AST_expresion         {=, ;}
   '''
@@ -1217,50 +1254,11 @@ def p_declaracion_format_string(p): # AST_format_string
   modificador = p[2]              # [AST_skippeable] | AST_modificador_objeto | AST_argumentos
   p[0] = aplicarModificador(format_string, modificador)
 
-# TODO: Esta debería reemplazarla por las próximas 3 pero no estaría pudiendo definir los tokens correctamente.
-  # Creo que voy a tener que dejarlo así y hacer una segunda pasada para parsear el contenido interno.
-def p_format_string_empty(p): # AST_expresion_literal
+def p_format_string_empty(p): # AST_format_string
   '''
   format_string : FORMAT_STRING_COMPLETE
   '''
-  p[0] = AST_sintaxis(p[1])
-
-# def p_format_string_start(p): # AST_format_string
-#   '''
-#   format_string : FORMAT_STRING_START expresion format_string_next
-#   '''
-#   s = AST_sintaxis(p[1])    # AST_sintaxis
-#   expresion = p[2]          # AST_expresion
-#   rec = p[3]                # [AST_expresion] | AST_sintaxis
-#   expresion.apertura(s)
-#   if type(rec) is AST_sintaxis:
-#     expresion.clausura(rec)
-#     rec = [expresion]
-#   else:
-#     rec = concatenar(expresion, rec)
-#   p[0] = AST_format_string(rec)
-
-# def p_format_string_end(p): # AST_sintaxis
-#   '''
-#   format_string_next : FORMAT_STRING_END
-#   '''
-#   s = AST_sintaxis(p[1])    # AST_sintaxis
-#   p[0] = p[1]
-
-# def p_format_string_next(p): # [AST_expresion]
-#   '''
-#   format_string_next : FORMAT_STRING_MIDDLE expresion format_string_next
-#   '''
-#   s = AST_sintaxis(p[1])    # AST_sintaxis
-#   expresion = p[2]          # AST_expresion
-#   rec = p[3]                # [AST_expresion] | AST_sintaxis
-#   expresion.apertura(s)
-#   if type(rec) is AST_sintaxis:
-#     expresion.clausura(rec)
-#     rec = [expresion]
-#   else:
-#     rec = concatenar(expresion, rec)
-#   p[0] = rec
+  p[0] = AST_format_string(p[1])
 
 # DECLARACIÓN : OBJETO (no es asignable pero se vuelve asignable al accederlo o indexarlo)
  #################################################################################################
@@ -2395,9 +2393,10 @@ class AST_modificador_declaracion_extension(AST_modificador_declaracion):
     return super().restore(f"{restore(self.nombre)}")
 
 class AST_format_string(AST_expresion):
-  def __init__(self, elementos):
+  def __init__(self, completo):
     super().__init__()
-    self.elementos = elementos    # [AST_expresion]
+    # TODO: parsing auxiliar para identificar las expresiones dentro de "completo"
+    self.elementos = []    # [AST_expresion]
   def restore(self):
     return super().restore(f"{''.join(map(restore, self.elementos))}")
 
