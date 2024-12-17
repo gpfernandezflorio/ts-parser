@@ -31,14 +31,5 @@ def parsearArchivo(nombreArchivo):
 def eq_string(a, b):
   return len(a) == len(b) and functools.reduce(lambda x, rec: a[x]==b[x] and rec, range(len(a)), True)
 
-def fill(s,k):
-  resultado = s
-  while len(resultado) < k:
-    resultado += ' '
-  return resultado
-
-def clean(s):
-  return s.replace('\n','\\n')
-
 if __name__ == '__main__':
   main()

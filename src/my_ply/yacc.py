@@ -1767,7 +1767,7 @@ class LRTable:
             st_actionp = {}
             st_goto    = {}
             log.info('')
-            log.info('state %d', st)
+            log.info('[state %d]', st)
             log.info('')
             for p in I:
                 log.info('    (%d) %s', p.number, p)
@@ -1803,7 +1803,7 @@ class LRTable:
                                             st_action[a] = -p.number
                                             st_actionp[a] = p
                                             if not slevel and not rlevel:
-                                                log.info('  ! shift/reduce conflict for %s resolved as reduce', a)
+                                                log.info(' <!> shift/reduce conflict for %s resolved as reduce', a)
                                                 self.sr_conflicts.append((st, a, 'reduce'))
                                             Productions[p.number].reduced += 1
                                         elif (slevel == rlevel) and (rprec == 'nonassoc'):
@@ -1811,7 +1811,7 @@ class LRTable:
                                         else:
                                             # Hmmm. Guess we'll keep the shift
                                             if not rlevel:
-                                                log.info('  ! shift/reduce conflict for %s resolved as shift', a)
+                                                log.info(' <!> shift/reduce conflict for %s resolved as shift', a)
                                                 self.sr_conflicts.append((st, a, 'shift'))
                                     elif r < 0:
                                         # Reduce/reduce conflict.   In this case, we favor the rule
@@ -1827,7 +1827,7 @@ class LRTable:
                                         else:
                                             chosenp, rejectp = oldp, pp
                                         self.rr_conflicts.append((st, chosenp, rejectp))
-                                        log.info('  ! reduce/reduce conflict for %s resolved using rule %d (%s)',
+                                        log.info(' <!> reduce/reduce conflict for %s resolved using rule %d (%s)',
                                                  a, st_actionp[a].number, st_actionp[a])
                                     else:
                                         raise LALRError('Unknown conflict in state %d' % st)
@@ -1868,14 +1868,14 @@ class LRTable:
                                             st_action[a] = j
                                             st_actionp[a] = p
                                             if not rlevel:
-                                                log.info('  ! shift/reduce conflict for %s resolved as shift', a)
+                                                log.info(' <!> shift/reduce conflict for %s resolved as shift', a)
                                                 self.sr_conflicts.append((st, a, 'shift'))
                                         elif (slevel == rlevel) and (rprec == 'nonassoc'):
                                             st_action[a] = None
                                         else:
                                             # Hmmm. Guess we'll keep the reduce
                                             if not slevel and not rlevel:
-                                                log.info('  ! shift/reduce conflict for %s resolved as reduce', a)
+                                                log.info(' <!> shift/reduce conflict for %s resolved as reduce', a)
                                                 self.sr_conflicts.append((st, a, 'reduce'))
 
                                     else:

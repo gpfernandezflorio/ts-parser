@@ -18,6 +18,7 @@ from parser import AST_modificador_objeto_acceso
 from parser import AST_modificador_objeto_index
 from parser import AST_operador as operador
 from parser import AST_campo
+from parser import AST_return as ret
 from parser import AST_combinador
 
 def id(s,i,c,f):
@@ -185,7 +186,7 @@ casos_de_test = [
     ])
   ]),
   Test("Declaración de función (2)",
-    "const z1 = function ( b ) {2;}",[
+    "const z1 = function ( b ) {return 2;}",[
     t('DECL_VAR','const',1,1,0),
     t('SKIP',' ',1,6,5),
     id('z1',1,7,6),
@@ -201,10 +202,12 @@ casos_de_test = [
     t('CIERRA_PAREN',')',1,25,24),
     t('SKIP',' ',1,26,25),
     t('ABRE_LLAVE','{',1,27,26),
-    n('2',1,28,27),
-    t('PUNTO_Y_COMA',';',1,29,28),
-    t('CIERRA_LLAVE','}',1,30,29)
-  ], [variable('z1',abs('b','2'))
+    t('RETURN','return',1,28,27),
+    t('SKIP',' ',1,34,33),
+    n('2',1,35,34),
+    t('PUNTO_Y_COMA',';',1,36,35),
+    t('CIERRA_LLAVE','}',1,37,36)
+  ], [variable('z1',abs('b',[ret(literal('2'))]))
   ]),
   Test("Declaración de función e invocación",
     "const z1 = function ( b ) {2;}()",[
@@ -228,7 +231,7 @@ casos_de_test = [
     t('CIERRA_LLAVE','}',1,30,29),
     t('ABRE_PAREN','(',1,31,30),
     t('CIERRA_PAREN',')',1,32,31)
-  ], [variable('z1',invocacion(abs('b','2')))
+  ], [variable('z1',invocacion(abs('b',['2'])))
   ]),
   Test("Comentarios",
     "/**/a // b \n// // hola /* */\nc\n/*\n\nhola\n\n*/\nd\n/*\n\nchau\n\n*/",[
@@ -275,7 +278,7 @@ casos_de_test = [
   Test("Acceso a objetos",
     "a.b;a[1];b[a]",[
       id('a',1,1,0),
-      t('PUNTO','.',1,2,1),
+      t('ACCESO','.',1,2,1),
       id('b',1,3,2),
       t('PUNTO_Y_COMA',';',1,4,3),
       id('a',1,5,4),
@@ -294,14 +297,14 @@ casos_de_test = [
   Test("Modificación de objetos",
     "a.b=c[1].d;a[c]=d().b",[
       id('a',1,1,0),
-      t('PUNTO','.',1,2,1),
+      t('ACCESO','.',1,2,1),
       id('b',1,3,2),
       t('ASIGNACION','=',1,4,3),
       id('c',1,5,4),
       t('ABRE_CORCHETE','[',1,6,5),
       n('1',1,7,6),
       t('CIERRA_CORCHETE',']',1,8,7),
-      t('PUNTO','.',1,9,8),
+      t('ACCESO','.',1,9,8),
       id('d',1,10,9),
       t('PUNTO_Y_COMA',';',1,11,10),
       id('a',1,12,11),
@@ -312,7 +315,7 @@ casos_de_test = [
       id('d',1,17,16),
       t('ABRE_PAREN','(',1,18,17),
       t('CIERRA_PAREN',')',1,19,18),
-      t('PUNTO','.',1,20,19),
+      t('ACCESO','.',1,20,19),
       id('b',1,21,20)
   ], [asignacion(acceso('a','b'),acceso(index('c','1'),'d')),
       asignacion(index('a','c'),acceso(invocacion('d'),'b'))
@@ -320,22 +323,22 @@ casos_de_test = [
   Test("Combinación objetos y funciones (1)",
     "a.b.c()().c(c[3].b[a()[b]()][2])",[
     id('a',1,1,0),
-    t('PUNTO','.',1,2,1),
+    t('ACCESO','.',1,2,1),
     id('b',1,3,2),
-    t('PUNTO','.',1,4,3),
+    t('ACCESO','.',1,4,3),
     id('c',1,5,4),
     t('ABRE_PAREN','(',1,6,5),
     t('CIERRA_PAREN',')',1,7,6),
     t('ABRE_PAREN','(',1,8,7),
     t('CIERRA_PAREN',')',1,9,8),
-    t('PUNTO','.',1,10,9),
+    t('ACCESO','.',1,10,9),
     id('c',1,11,10),
     t('ABRE_PAREN','(',1,12,11),
     id('c',1,13,12),
     t('ABRE_CORCHETE','[',1,14,13),
     n('3',1,15,14),
     t('CIERRA_CORCHETE',']',1,16,15),
-    t('PUNTO','.',1,17,16),
+    t('ACCESO','.',1,17,16),
     id('b',1,18,17),
     t('ABRE_CORCHETE','[',1,19,18),
     id('a',1,20,19),
@@ -390,7 +393,7 @@ casos_de_test = [
     t('ABRE_CORCHETE','[',3,5,36),
     n('2',3,6,37),
     t('CIERRA_CORCHETE',']',3,7,38),
-    t('PUNTO','.',3,8,39),
+    t('ACCESO','.',3,8,39),
     id('x',3,9,40),
     t('ABRE_CORCHETE','[',3,10,41),
     n('3',3,11,42),
@@ -434,7 +437,7 @@ casos_de_test = [
     t('CIERRA_LLAVE','}',1,24,23)
   ],[
     asignacion('a',objeto({})),
-    objeto({"x":2,"b":abs()})
+    objeto({"x":2,"b":abs([],[])})
   ]),
   Test("Operadores",
     "2+3+4;!b*(2>=c)",[
@@ -449,7 +452,7 @@ casos_de_test = [
     t('POR','*',1,9,8),
     t('ABRE_PAREN','(',1,10,9),
     n('2',1,11,10),
-    t('OPERADOR_BINARIO','>=',1,12,11),
+    t('OPERADOR_BOOLEANO','>=',1,12,11),
     id('c',1,14,13),
     t('CIERRA_PAREN',')',1,15,14)
   ],[
@@ -464,7 +467,7 @@ casos_de_test = [
     t('SKIP',' ',1,5,4),
     id('t',1,6,5),
     t('SKIP',' ',1,7,6),
-    t('OPERADOR_BINARIO','<',1,8,7),
+    t('OPERADOR_BOOLEANO','<',1,8,7),
     t('SKIP',' ',1,9,8),
     n('10',1,10,9),
     t('SKIP',' ',1,12,11),
@@ -498,7 +501,7 @@ casos_de_test = [
     t('PUNTO_Y_COMA',';',3,13,51),
     t('SKIP',' ',3,14,52),
     id('i',3,15,53),
-    t('OPERADOR_BINARIO','<=',3,16,54),
+    t('OPERADOR_BOOLEANO','<=',3,16,54),
     n('10',3,18,56),
     t('PUNTO_Y_COMA',';',3,20,58),
     t('SKIP',' ',3,21,59),
@@ -549,7 +552,7 @@ def evaluar(test):
   while i < len(esperado) and i < len(obtenido):
     if str(obtenido[i]) != str(esperado[i]):
       print("Error en test: "+test.desc)
-      print("Se esperaba "+clean_str(esperado[i])+" pero se obtuvo "+clean_str(obtenido[i]))
+      print("Se esperaba:\n"+clean_str(esperado[i])+"\n pero se obtuvo:\n"+clean_str(obtenido[i]))
       return True
     i += 1
   if len(obtenido) > i:
