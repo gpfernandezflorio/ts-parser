@@ -1128,7 +1128,7 @@ def p_modificador_expresion_asignada_cierre(p): # [AST_skippeable]
 
 def p_cuerpo_abstraccion_expresion(p): # AST_cuerpo
   '''
-  cuerpo_abstraccion : expresion
+  cuerpo_abstraccion : expresion_no_obj
   '''
   p[0] = AST_cuerpo([p[1]])
 
@@ -1140,16 +1140,30 @@ def p_cuerpo_abstraccion_cuerpo(p): # AST_cuerpo
 
 ## -- EXPRESIONES --
 
+def p_expresion_objeto(p): # AST_expresion_objeto
+  '''
+  expresion : objeto
+  '''
+  objeto = p[1]
+  p[0] = objeto
+
+def p_expresion_no_objeto(p): # AST_expresion_objeto
+  '''
+  expresion : expresion_no_obj
+  '''
+  expresion = p[1]
+  p[0] = expresion
+
 def p_expresion_sin_pre(p): # AST_expresion
   '''
-  expresion : expresion_sin_pre
+  expresion_no_obj : expresion_sin_pre
   '''
   expresion = p[1]
   p[0] = expresion
 
 def p_expresion_con_pre(p): # AST_expresion
   '''
-  expresion : operador_prefijo s expresion
+  expresion_no_obj : operador_prefijo s expresion_no_obj
   '''
   operador = p[1]                 # string
   s = concatenar(operador, p[2])  # [AST_skippeable]
@@ -1211,13 +1225,6 @@ def p_expresion_new(p): # AST_invocacion
   identificador.apertura(s1)
   identificador.clausura(s2)
   p[0] = aplicarModificador(identificador, argumentos)
-
-def p_expresion_objeto(p): # AST_expresion_objeto
-  '''
-  expresion_sin_pre : objeto
-  '''
-  objeto = p[1]
-  p[0] = objeto
 
 def p_expresion_lista(p): # AST_expresion_lista
   '''
