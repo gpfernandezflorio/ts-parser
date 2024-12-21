@@ -1,8 +1,7 @@
 import sys
-import functools
 from bibpy.base import Boom
 from bibpy.archivos import contenidoDe_, existeArchivo_Acá
-from parser import tokenizar, parsear, mostrarAST, mostrarTokens, mostrarDiff
+from parser import tokenizar, parsear, mostrarAST, mostrarTokens, mostrarDiff, eq_string
 
 def main():
   if len(sys.argv) == 1:
@@ -27,9 +26,6 @@ def parsearArchivo(nombreArchivo):
   else:
     print("Falló la restauración")
     mostrarDiff(contenido, z)
-
-def eq_string(a, b):
-  return len(a) == len(b) and functools.reduce(lambda x, rec: a[x]==b[x] and rec, range(len(a)), True)
 
 if __name__ == '__main__':
   main()

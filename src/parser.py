@@ -1,5 +1,6 @@
 from my_ply.lex import lex, LexToken
 from my_ply.yacc import yacc
+import functools
 
 tokens = (
   'DECL_FUNC',
@@ -176,13 +177,13 @@ def p_error(t, p=None):
     P -> PU     ... una lista de declaraciones      p(D) U {lambda}    : (AST_declaracion) : [ P ]
     P -> SF PU  ... o empezar con skippeables antes {skip, comentario} : (AST_skippeable) : [ P ]
 ''' #################################################################################################
-def p_programa_que_no_empieza_con_skip(p):
+def p_programa_que_no_empieza_con_skip(p): # [AST_nodo]
   '''
   programa : programa_util
   '''
   p[0] = p[1]
 
-def p_programa_que_empieza_con_skip(p):
+def p_programa_que_empieza_con_skip(p): # [AST_nodo]
   '''
   programa : sf programa_util
   '''
@@ -193,17 +194,21 @@ def p_programa_que_empieza_con_skip(p):
     PU -> lambda                                    {lambda}
     PU -> D PU                                      p(D)
 ''' #################################################################################################
-def p_programa_util_vacio(p):
+def p_programa_util_vacio(p): # [AST_nodo]
   '''
   programa_util : vacio
   '''
   p[0] = []
 
-def p_programa_util_no_vacio(p):
+def p_programa_util_no_vacio(p): # [AST_nodo]
   '''
-  programa_util : declaracion programa_util
+  programa_util : declaracion s programa_util
   '''
-  p[0] = concatenar(p[1], p[2])
+  declaracion = p[1]  # AST_declaracion
+  s = p[2]            # [AST_skippeable]
+  rec = p[3]          # [AST_nodo]
+  declaracion.clausura(s)
+  p[0] = concatenar(declaracion, rec)
 
 # SKIPPEABLE_FORZADO : [AST_skippeable] #############################################################
 ''' Un skippeable forzado debe tener al menos un skippeable y puede seguir con más skippeables
@@ -303,8 +308,7 @@ def p_declaracion_function_decl(p): # AST_declaracion_funcion
     print("ERROR p_declaracion_function_decl")
     exit(0)
   nombre.clausura(s)
-  p[0] = AST_declaracion_funcion(nombre, rec.parametros, rec.cuerpo, rec.decoradores)
-  p[0].imitarEspacios(rec)
+  p[0] = AST_declaracion_funcion(nombre, rec)
   p[0].clausura(cierre)
 
 def p_declaracion_function_anon(p): # AST_funcion_incompleta | AST_invocacion
@@ -489,16 +493,17 @@ def p_opt_decorador_identificador_opcional(p): # AST_decorador
   '''
   decorador_identificador_no_vacio : PREGUNTA s opt_decorador_identificador_tipo
   '''
-  s = AST_sintaxis(p[1])                    # AST_sintaxis
-  s = concatenar(s, p[2])                   # [AST_skippeable]
+  s1 = AST_sintaxis(p[1])                   # AST_sintaxis
+  s1 = concatenar(s1, p[2])                 # [AST_skippeable]
   opt_tipo = p[3]                           # AST_identificador | [AST_skippeable]
   tipo = None
-  s = opt_tipo
+  s2 = opt_tipo
   if type(opt_tipo) is AST_identificador:
     tipo = opt_tipo
-    s = []
+    s2 = []
   decorador = AST_decorador(tipo, True)  # AST_decorador
-  decorador.apertura(s)
+  decorador.apertura(s1)
+  decorador.clausura(s2)
   p[0] = decorador
 
 def p_opt_decorador_identificador_tipo(p): # AST_decorador
@@ -896,7 +901,7 @@ def p_expresion_asignada_new(p): # AST_invocacion
   s2 = p[4]                                 # [AST_skippeable]
   argumentos = p[5]                         # AST_argumentos
   identificador.apertura(s1)
-  identificador.clausura(s1)
+  identificador.clausura(s2)
   p[0] = aplicarModificador(identificador, argumentos)
 
 def p_expresion_asignada_objeto(p): # AST_expresion_objeto
@@ -1105,7 +1110,7 @@ def p_expresion_new(p): # AST_invocacion
   s2 = p[4]                                 # [AST_skippeable]
   argumentos = p[5]                         # AST_argumentos
   identificador.apertura(s1)
-  identificador.clausura(s1)
+  identificador.clausura(s2)
   p[0] = aplicarModificador(identificador, argumentos)
 
 def p_expresion_objeto(p): # AST_expresion_objeto
@@ -1475,8 +1480,12 @@ def p_lista_literal(p): # AST_expresion_lista
   abre = AST_sintaxis(p[1])
   s = concatenar(abre, p[2])              # [AST_skippeable]
   elementos = p[3]                        # AST_elementos
+  modificadores = elementos.adicional     # [AST_modificador]
+  elementos.adicional = []
   lista = AST_expresion_lista(elementos)
   lista.apertura(s)
+  for m in modificadores:
+    lista = aplicarModificador(lista, m)
   p[0] = lista
 
 def p_elementos_vacio(p): # AST_elementos
@@ -1491,7 +1500,7 @@ def p_elementos_no_vacio(p): # AST_elementos
   elementos : expresion mas_elementos
   '''
   expresion = p[1]          # AST_expresion
-  elementos = p[2]         # AST_elementos
+  elementos = p[2]          # AST_elementos
   elementos.agregar_elemento(expresion)
   p[0] = elementos
 
@@ -1728,11 +1737,10 @@ def p_selector_combinador_else(p): # AST_combinador
   '''
   clase = p[1]                  # string
   combinador = p[2]             # AST_combinador | [AST_skippeable]
-  if (isinstance(combinador, AST_combinador)):
-    combinador.apertura(clase)
-  else:
+  if not (isinstance(combinador, AST_combinador)):
     combinador = AST_combinador(clase)
     combinador.clausura(p[2])
+  combinador.apertura(clase)
   p[0] = combinador
 
 def p_opt_if_con_skip(p): # AST_combinador | [AST_skippeable]
@@ -1884,10 +1892,12 @@ def p_import_como_alias(p): # AST_identificador
   '''
   opt_importar_como : AS s IDENTIFICADOR s
   '''
-  r = AST_sintaxis(p[1])            # AST_sintaxis
-  s = concatenar(r,p[2])            # [AST_skippeable]
+  s1 = AST_sintaxis(p[1])           # AST_sintaxis
+  s1 = concatenar(s1,p[2])          # [AST_skippeable]
   alias = AST_identificador(p[3])   # AST_identificador
-  alias.apertura(s)
+  s2 = p[4]                         # [AST_skippeable]
+  alias.apertura(s1)
+  alias.clausura(s2)
   p[0] = alias
 
 def p_import_como_vacio(p): # [AST_skippeable]
@@ -2019,19 +2029,10 @@ def p_declaracion_dentro_de_clase_con_pre(p):
   declaracion_dentro_de_clase : modificador_pre_decl identificador opt_modificador_dentro_de_clase
   '''
   modificadores_pre = p[1]
-  declaracion = p[2]
+  declaracion = p[2]                  # AST_identificador
   opt_modificador_adicional = p[3]    # AST_expresion | AST_expresion_funcion | [AST_skippeable]
   declaracion = aplicarModificador(declaracion, opt_modificador_adicional)
   declaracion.modificadores_pre(modificadores_pre)
-  p[0] = declaracion
-
-def p_declaracion_dentro_de_clase_sin_pre(p):
-  '''
-  declaracion_dentro_de_clase : identificador opt_modificador_dentro_de_clase
-  '''
-  declaracion = p[1]
-  opt_modificador_adicional = p[2]    # AST_expresion | AST_expresion_funcion | [AST_skippeable]
-  declaracion = aplicarModificador(declaracion, opt_modificador_adicional)
   p[0] = declaracion
 
 def p_opt_modificador_dentro_de_clase_con_skip(p): # AST_expresion | AST_expresion_funcion | [AST_skippeable]
@@ -2095,7 +2096,7 @@ def p_opt_modificador_clase_con_skip(p): # [AST_modificador_declaracion] | [AST_
   s = p[1]
   modificadores = p[2]
   if len(modificadores) > 0:
-    modificadores[-1].apertura(s)
+    modificadores[0].apertura(s)
   else:
     modificadores = s
   p[0] = modificadores
@@ -2235,6 +2236,7 @@ class AST_nodo(object):
     self.cierra = self.cierra + otro.cierra
   def modificadores_pre(self, modificadores):
     self.pre_mods = modificadores
+    self.apertura(modificadores)
   def apertura(self, c):
     if c is None:
       return
@@ -2295,18 +2297,19 @@ class AST_modificador(AST_nodo):
     self.adicional.append(otro)
 
 class AST_declaracion_funcion(AST_declaracion):
-  def __init__(self, nombre, parametros, cuerpo, decoradores=[]):
+  def __init__(self, nombre, funcion_incompleta):
     super().__init__()
-    self.nombre = nombre            # AST_identificador
-    self.parametros = parametros    # AST_parametros
-    self.cuerpo = cuerpo            # AST_cuerpo
-    self.decoradores = decoradores  # [AST_decorador]
+    self.nombre = nombre                                # AST_identificador
+    self.parametros = funcion_incompleta.parametros     # AST_parametros
+    self.cuerpo = funcion_incompleta.cuerpo             # AST_cuerpo
+    self.decoradores = funcion_incompleta.decoradores   # [AST_decorador]
+    self.imitarEspacios(funcion_incompleta)
   def __str__(self):
     return f"DeclaraciónFunción : {show(self.nombre)}"
   def restore(self):
     return super().restore(f"{restore(self.nombre)}{restore(self.parametros)}{restore(self.decoradores)}{restore(self.cuerpo)}")
 
-class AST_declaracion_clase():
+class AST_declaracion_clase(AST_declaracion):
   def __init__(self, nombre, definicion, post_mods):
     super().__init__()
     self.nombre = nombre            # AST_identificador
@@ -2315,7 +2318,7 @@ class AST_declaracion_clase():
   def __str__(self):
     return f"Declaración clase : {show(self.nombre)}"
   def restore(self):
-    return super().restore(f"{restore(self.pre_mods)}{restore(self.nombre)}{restore(self.post_mods)}{restore(self.definicion)}")
+    return super().restore(f"{restore(self.nombre)}{restore(self.post_mods)}{restore(self.definicion)}")
 
 class AST_cuerpo(AST_declaracion):
   def __init__(self, contenido):
@@ -2451,6 +2454,8 @@ class AST_combinador(AST_declaracion):
     self.expresion = expresion  # [AST_nodo] [[ OJO: no es una expresión porque podría ser algo como "let i=0; i++;" ]]
     self.cuerpo = []            # [AST_nodo]
   def agregar_cuerpo(self, cuerpo):
+    cuerpo.apertura(self.cierra)
+    self.cierra = []
     self.cuerpo = cuerpo        # AST_cuerpo
   def __str__(self):
     return f"{self.clase} : {show(self.expresion)} {show(self.cuerpo)}"
@@ -2520,7 +2525,11 @@ class AST_campos(AST_declaracion):
   def __init__(self):
     super().__init__()
     self.lista = []  # [AST_campo]
+    self.tmp = None
   def agregar_campo(self, campo):
+    if not (self.tmp is None):
+      campo.clausura(self.tmp)
+      self.tmp = None
     self.lista.insert(0, campo)
   def cantidad(self):
     return len(self.lista)
@@ -2528,7 +2537,7 @@ class AST_campos(AST_declaracion):
     if self.cantidad() > 0:
       self.lista[0].apertura(c)
     else:
-      super().apertura(c)
+      self.tmp = c
   def __str__(self):
     return f"{show(self.lista)}"
   def restore(self):
@@ -2541,7 +2550,7 @@ class AST_argumentos(AST_modificador):
     self.tmp = None
   def agregar_argumento(self, arg):
     if not (self.tmp is None):
-      arg.apertura(self.tmp)
+      arg.clausura(self.tmp)
       self.tmp = None
     self.lista.insert(0, arg)
   def apertura_temporal(self, s):
@@ -2664,6 +2673,8 @@ class AST_modificador_comotipo(AST_modificador):
   def __init__(self, expresion):
     super().__init__()
     self.expresion = expresion  # AST_expresion
+  def restore(self):
+    return super().restore(f"{restore(self.expresion)}")
 
 class AST_modificador_operador_binario(AST_modificador_operador):
   def __init__(self, clase, expresion):
@@ -2731,9 +2742,11 @@ class AST_modificador_declaracion_extension(AST_modificador_declaracion):
 class AST_format_string(AST_expresion):
   def __init__(self, completo):
     super().__init__()
-    # TODO: parsing auxiliar para identificar las expresiones dentro de "completo"
+    # TODO: parsing auxiliar para identificar las expresiones dentro de "completo". Luego eliminar el campo self.tmp y la primera línea de la función restore
     self.elementos = []    # [AST_expresion]
+    self.tmp = completo
   def restore(self):
+    return super().restore(f"{self.tmp}")
     return super().restore(f"{''.join(map(restore, self.elementos))}")
 
 class AST_tipo_objeto(AST_expresion):
@@ -2820,6 +2833,9 @@ def aplicarModificador(nodo, mod):
   elif isinstance(mod, AST_argumentos):
     # INVOCACIÓN: {nodo} ( {mod} )
     resultado = AST_invocacion(nodo, mod)
+  elif isinstance(mod, AST_funcion_incompleta):
+    # DECLARACIÓN (dentro de clase): {nodo} ( {mod.parametros} ) { {mod.cuerpo} }
+    resultado = AST_declaracion_funcion(nodo, mod)
   elif isinstance(mod, AST_iterador):
     # ITERACIÓN: {nodo} in {mod}
     mod.expresion.imitarEspacios(mod)
@@ -2874,10 +2890,10 @@ def mostrarAST(ast):
 
 def mostrarDiff(a, b):
   lineas_a = a.split('\n')
-  lineas_b = a.split('\n')
+  lineas_b = b.split('\n')
   i = 0
   m = min(len(lineas_a), len(lineas_b))
-  while i < m and lineas_a[i] == lineas_b[i]:
+  while i < m and eq_string(lineas_a[i], lineas_b[i]):
     i += 1
   if i == m: # Uno es más largo
     if len(lineas_b) > len(lineas_a):
@@ -2889,8 +2905,29 @@ def mostrarDiff(a, b):
     print(''.join(lineas))
   else:
     print(f"[{i+1}]")
-    print(f"  {lineas_a[i]}")
-    print(f"  {lineas_b[i]}")
+    if i > 0:
+      print(f"  {V(lineas_a[i-1])}")
+    print(f"> {V(lineas_a[i])}")
+    if i < len(a)-1:
+      print(f"  {V(lineas_a[i+1])}")
+    if i < len(a)-2:
+      print(f"  {V(lineas_a[i+2])}")
+    print("--")
+    if i > 0:
+      print(f"  {V(lineas_b[i-1])}")
+    print(f"> {V(lineas_b[i])}")
+    if i < len(b)-1:
+      print(f"  {V(lineas_b[i+1])}")
+    if i < len(b)-2:
+      print(f"  {V(lineas_b[i+2])}")
+
+def V(s):
+  return s.replace(' ', '_')
+
+def eq_string(a, b):
+  # if len(a) == 1 and len(b) == 1: # Caso borde: Por alguna razón functools.reduce falla si la longitud es 1
+  #   return a[0] == b[0]
+  return len(a) == len(b) and functools.reduce(lambda x, rec: a[x]==b[x] and rec, range(len(a)), True)
 
 def fill(s,k):
   resultado = s
