@@ -20,6 +20,7 @@ from parser import AST_operador as operador
 from parser import AST_campo
 from parser import AST_return as ret
 from parser import AST_combinador
+from parser import AST_cuerpo
 
 def id(s,i,c,f):
   return t('IDENTIFICADOR',s,i,c,f)
@@ -31,7 +32,7 @@ def invocacion(funcion, argumentos=[]):
   return AST_invocacion(funcion, argumentos)
 
 def funcion(nombre, parametros, cuerpo):
-  return AST_declaracion_funcion(nombre, parametros, cuerpo)
+  return AST_declaracion_funcion(nombre, AST_funcion_incompleta(parametros, cuerpo))
 
 def abs(parametros=[], cuerpo=None):
   return AST_expresion_funcion(AST_funcion_incompleta(parametros, cuerpo))
@@ -47,7 +48,7 @@ def objeto(dic):
 
 def combinador(clase, expresion, cuerpo):
   combinador = AST_combinador(clase, expresion)
-  combinador.agregar_cuerpo(cuerpo)
+  combinador.agregar_cuerpo(AST_cuerpo(cuerpo))
   return combinador
 
 def main():
@@ -132,7 +133,7 @@ casos_de_test = [
     t('SKIP',' ',1,5,4),
     id('x',1,6,5),
     t('SKIP','\t',1,7,6),
-    t('ASIGNACION','=',1,8,7),
+    t('ASIGNACION1','=',1,8,7),
     t('SKIP','  ',1,9,8),
     n('5',1,11,10)
   ], [espacios('\t'),
@@ -146,11 +147,11 @@ casos_de_test = [
     t('PUNTO_Y_COMA',';',1,8,7),
     id('x',1,9,8),
     t('SKIP',' ',1,10,9),
-    t('ASIGNACION','=',1,11,10),
+    t('ASIGNACION1','=',1,11,10),
     t('SKIP','\n',1,12,11),
     t('STRING',"'2'",2,1,12),
     id('x',2,4,15),
-    t('ASIGNACION','=',2,5,16),
+    t('ASIGNACION1','=',2,5,16),
     t('STRING','"true"',2,6,17)
   ], [variable('x'),
       asignacion('x',"'2'"),
@@ -166,14 +167,14 @@ casos_de_test = [
     t('SKIP',' ',1,16,15),
     t('ABRE_LLAVE','{',1,17,16),
     id('x',1,18,17),
-    t('ASIGNACION','=',1,19,18),
+    t('ASIGNACION1','=',1,19,18),
     n('2.5',1,20,19),
     t('PUNTO_Y_COMA',';',1,23,22),
     t('DECL_VAR','let',1,24,23),
     t('SKIP',' ',1,27,26),
     id('y',1,28,27),
     t('SKIP',' ',1,29,28),
-    t('ASIGNACION','=',1,30,29),
+    t('ASIGNACION1','=',1,30,29),
     t('SKIP',' ',1,31,30),
     n('.66',1,32,31),
     t('SKIP','\t',1,35,34),
@@ -191,7 +192,7 @@ casos_de_test = [
     t('SKIP',' ',1,6,5),
     id('z1',1,7,6),
     t('SKIP',' ',1,9,8),
-    t('ASIGNACION','=',1,10,9),
+    t('ASIGNACION1','=',1,10,9),
     t('SKIP',' ',1,11,10),
     t('DECL_FUNC','function',1,12,11),
     t('SKIP',' ',1,20,19),
@@ -215,7 +216,7 @@ casos_de_test = [
     t('SKIP',' ',1,6,5),
     id('z1',1,7,6),
     t('SKIP',' ',1,9,8),
-    t('ASIGNACION','=',1,10,9),
+    t('ASIGNACION1','=',1,10,9),
     t('SKIP',' ',1,11,10),
     t('DECL_FUNC','function',1,12,11),
     t('SKIP',' ',1,20,19),
@@ -299,7 +300,7 @@ casos_de_test = [
       id('a',1,1,0),
       t('ACCESO','.',1,2,1),
       id('b',1,3,2),
-      t('ASIGNACION','=',1,4,3),
+      t('ASIGNACION1','=',1,4,3),
       id('c',1,5,4),
       t('ABRE_CORCHETE','[',1,6,5),
       n('1',1,7,6),
@@ -311,7 +312,7 @@ casos_de_test = [
       t('ABRE_CORCHETE','[',1,13,12),
       id('c',1,14,13),
       t('CIERRA_CORCHETE',']',1,15,14),
-      t('ASIGNACION','=',1,16,15),
+      t('ASIGNACION1','=',1,16,15),
       id('d',1,17,16),
       t('ABRE_PAREN','(',1,18,17),
       t('CIERRA_PAREN',')',1,19,18),
@@ -419,7 +420,7 @@ casos_de_test = [
   Test("Objetos literales",
     "a={}{x:2,b:function(){}}",[
     id('a',1,1,0),
-    t('ASIGNACION','=',1,2,1),
+    t('ASIGNACION1','=',1,2,1),
     t('ABRE_LLAVE','{',1,3,2),
     t('CIERRA_LLAVE','}',1,4,3),
     t('ABRE_LLAVE','{',1,5,4),
@@ -496,7 +497,7 @@ casos_de_test = [
     t('DECL_VAR','var',3,6,44),
     t('SKIP',' ',3,9,47),
     id('i',3,10,48),
-    t('ASIGNACION','=',3,11,49),
+    t('ASIGNACION1','=',3,11,49),
     n('0',3,12,50),
     t('PUNTO_Y_COMA',';',3,13,51),
     t('SKIP',' ',3,14,52),
@@ -510,7 +511,7 @@ casos_de_test = [
     t('CIERRA_PAREN',')',3,25,63),
     t('ABRE_LLAVE','{',3,26,64),
     id('i',3,27,65),
-    t('ASIGNACION','*=',3,28,66),
+    t('ASIGNACION2','*=',3,28,66),
     n('2',3,30,68),
     t('CIERRA_LLAVE','}',3,31,69)
   ],[
