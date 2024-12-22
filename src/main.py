@@ -6,7 +6,8 @@ from parser import tokenizar, parsear, mostrarAST, mostrarTokens, mostrarDiff, e
 archivosTest = [
   "../../blockly/core/bubbles/bubble.ts",
   "../../blockly/core/bubbles/mini_workspace_bubble.ts",
-  "../../blockly/core/bubbles/text_bubble.ts"
+  "../../blockly/core/bubbles/text_bubble.ts",
+  "../../blockly/core/bubbles/textinput_bubble.ts"
 ]
 
 def main():
