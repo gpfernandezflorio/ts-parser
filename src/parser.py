@@ -103,7 +103,7 @@ t_ABRE_CORCHETE = r'\['
 t_CIERRA_CORCHETE = r'\]'
 t_OPERADOR_PREFIJO = r'!'
 t_OPERADOR_INFIJO = r'\+\+|--'
-t_OPERADOR_BOOLEANO = r'===|!==|==|!=|>=|<=|&&|\|\|'
+t_OPERADOR_BOOLEANO = r'===|!==|==|!=|>=|<=|&&|\|\||\?\?'
 t_FLECHA = r'=>'
 t_PIPE = r'\|'
 t_PREGUNTA = r'\?'
@@ -148,6 +148,7 @@ precedence = (
   ('left', 'MENOS','MAS'),
   ('left', 'ACCESO'),
   ('left', 'IDENTIFICADOR'),
+  ('left', 'PREGUNTA'),
   ('left', 'PIPE'),
 )
 
@@ -435,7 +436,7 @@ def p_identificadores_vacio(p): # [AST_identificador]
 
 def p_identificadores_primer_identificador(p): # [AST_identificador]
   '''
-  identificadores : identificador_con_modificadores_pre opt_decorador_identificador mas_identificadores
+  identificadores : identificador_con_modificadores_pre opt_decorador_parametro mas_identificadores
   '''
   identificador = p[1]      # AST_identificador
   opt_mod = p[2]            # AST_decorador | [AST_skippeable]
@@ -467,15 +468,68 @@ def p_mas_identificadores(p): # [AST_identificador] | [AST_skippeable]
     rec = concatenar(s, rec)
   p[0] = rec
 
-def p_opt_decorador_identificador_con_skip(p): # AST_decorador | [AST_skippeable]
+def p_opt_decorador_parametro_con_skip(p): # AST_decorador | [AST_skippeable]
   '''
-  opt_decorador_identificador : sf decorador_identificador
+  opt_decorador_parametro : sf decorador_parametro
   '''
   s = p[1]                  # [AST_skippeable]
   decorador = p[2]          # AST_decorador | [AST_skippeable]
   p[0] = modificador_con_skip(decorador, s)
 
-def p_opt_decorador_identificador_sin_skip(p): # AST_decorador | [AST_skippeable]
+def p_opt_decorador_parametro_sin_skip(p): # AST_decorador | [AST_skippeable]
+  '''
+  opt_decorador_parametro : decorador_parametro
+  '''
+  p[0] = p[1]
+
+def p_decorador_parametro_vacio(p): # [AST_skippeable]
+  '''
+  decorador_parametro : vacio
+  '''
+  p[0] = p[1]
+
+def p_decorador_parametro_no_vacio(p): # AST_decorador
+  '''
+  decorador_parametro : decorador_parametro_no_vacio
+  '''
+  p[0] = p[1]
+
+def p_opt_decorador_parametro_alias(p): # AST_decorador_alias
+  '''
+  decorador_parametro_no_vacio : AS s IDENTIFICADOR
+  '''
+  s = AST_sintaxis(p[1])            # AST_sintaxis
+  s = concatenar(s,p[2])            # [AST_skippeable]
+  alias = AST_identificador(p[3])   # AST_identificador
+  alias.apertura(s)
+  p[0] = AST_decorador_alias(alias)
+
+def p_opt_decorador_parametro_default(p): # AST_decorador_defualt
+  '''
+  decorador_parametro_no_vacio : simbolo_asignacion s expresion_asignada
+  '''
+  s = AST_sintaxis(p[1])                        # AST_sintaxis
+  s = concatenar(s, p[2])                       # [AST_skippeable]
+  expresion = p[3]                              # AST_expresion
+  decorador = AST_decorador_defualt(expresion)  # AST_decorador_defualt
+  decorador.apertura(s)
+  p[0] = decorador
+
+def p_opt_decorador_parametro_decorador_identificador(p): # AST_decorador_opcional | AST_decorador_tipo
+  '''
+  decorador_parametro_no_vacio : decorador_identificador_no_vacio
+  '''
+  p[0] = p[1]
+
+def p_opt_decorador_identificador_con_skip(p): # AST_decorador_opcional | AST_decorador_tipo | [AST_skippeable]
+  '''
+  opt_decorador_identificador : sf decorador_identificador
+  '''
+  s = p[1]                  # [AST_skippeable]
+  decorador = p[2]          # AST_decorador_opcional | AST_decorador_tipo | [AST_skippeable]
+  p[0] = modificador_con_skip(decorador, s)
+
+def p_opt_decorador_identificador_sin_skip(p): # AST_decorador_opcional | AST_decorador_tipo | [AST_skippeable]
   '''
   opt_decorador_identificador : decorador_identificador
   '''
@@ -487,40 +541,11 @@ def p_decorador_identificador_vacio(p): # [AST_skippeable]
   '''
   p[0] = p[1]
 
-def p_decorador_identificador_no_vacio(p): # AST_decorador
+def p_decorador_identificador_no_vacio(p): # AST_decorador_opcional | AST_decorador_tipo
   '''
   decorador_identificador : decorador_identificador_no_vacio
   '''
   p[0] = p[1]
-
-def p_opt_decorador_identificador_alias(p): # AST_decorador_alias
-  '''
-  decorador_identificador_no_vacio : AS s IDENTIFICADOR
-  '''
-  s = AST_sintaxis(p[1])            # AST_sintaxis
-  s = concatenar(s,p[2])            # [AST_skippeable]
-  alias = AST_identificador(p[3])   # AST_identificador
-  alias.apertura(s)
-  p[0] = AST_decorador_alias(alias)
-
-
-  s = AST_sintaxis(p[1])                        # AST_sintaxis
-  s = concatenar(s, p[2])                       # [AST_skippeable]
-  expresion = p[3]                              # AST_expresion
-  decorador = AST_decorador_defualt(expresion)  # AST_decorador_defualt
-  decorador.apertura(s)
-  p[0] = decorador
-
-def p_opt_decorador_identificador_default(p): # AST_decorador_defualt
-  '''
-  decorador_identificador_no_vacio : simbolo_asignacion s expresion_asignada
-  '''
-  s = AST_sintaxis(p[1])                        # AST_sintaxis
-  s = concatenar(s, p[2])                       # [AST_skippeable]
-  expresion = p[3]                              # AST_expresion
-  decorador = AST_decorador_defualt(expresion)  # AST_decorador_defualt
-  decorador.apertura(s)
-  p[0] = decorador
 
 def p_opt_decorador_identificador_opcional(p): # AST_decorador_opcional
   '''
@@ -797,7 +822,7 @@ def p_identificador_simple(p): # AST_identificador
 
 def p_identificador_uno(p): # AST_identificador
   '''
-  identificador_uno : IDENTIFICADOR opt_decorador_identificador_tipo
+  identificador_uno : IDENTIFICADOR opt_decorador_identificador
   '''
   identificador = AST_identificador(p[1])       # AST_identificador
   opt_tipo = p[2]                               # AST_decorador_tipo | [AST_skippeable]
@@ -1291,7 +1316,7 @@ def p_expresion_sin_identificador(p): # AST_expresion (_invocacion, _acceso, _in
 
 def p_expresion_identificador(p): # AST_expresion (_invocacion, _acceso, _index, ...)
   '''
-  expresion_sin_pre : IDENTIFICADOR opt_decorador_identificador_tipo opt_modificador_expresion
+  expresion_sin_pre : IDENTIFICADOR opt_decorador_identificador opt_modificador_expresion
   '''
   identificador = AST_identificador(p[1])   # AST_identificador
   opt_tipo = p[2]                           # AST_decorador_tipo | [AST_skippeable]
@@ -1988,7 +2013,7 @@ def p_clave_campo_format_string(p): # AST_format_string
 
 def p_clave_campo_variable(p): # AST_identificador
   '''
-  clave_campo : ABRE_CORCHETE s IDENTIFICADOR opt_decorador_identificador_tipo CIERRA_CORCHETE
+  clave_campo : ABRE_CORCHETE s IDENTIFICADOR opt_decorador_identificador CIERRA_CORCHETE
   '''
   abre = AST_sintaxis(p[1])                 # AST_sintaxis
   abre = concatenar(abre, p[2])             # [AST_skippeable]

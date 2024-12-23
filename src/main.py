@@ -11,7 +11,10 @@ archivosTest = [
   "../../blockly/core/bubbles.ts",
   "../../blockly/core/bubble_dragger.ts",
   "../../blockly/core/clipboard/block_paster.ts",
-  "../../blockly/core/clipboard/registry.ts"
+  "../../blockly/core/clipboard/registry.ts",
+  "../../blockly/core/clipboard/workspace_comment_paster.ts",
+  "../../blockly/core/events/events.ts",
+  "../../blockly/core/events/events_abstract.ts"
 ]
 
 def main():
