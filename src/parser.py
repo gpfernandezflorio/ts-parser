@@ -1236,10 +1236,29 @@ def p_expresion_con_pre(p): # AST_expresion
   expresion.apertura(s)
   p[0] = expresion
 
+def p_expresion_sin_identificador(p): # AST_expresion (_invocacion, _acceso, _index, ...)
+  '''
+  expresion_sin_pre : expresion_sin_pre_ni_id
+  '''
+  expresion = p[1]
+  p[0] = expresion
+
+def p_expresion_identificador(p): # AST_expresion (_invocacion, _acceso, _index, ...)
+  '''
+  expresion_sin_pre : IDENTIFICADOR opt_decorador_identificador_tipo opt_modificador_expresion
+  '''
+  identificador = AST_identificador(p[1])   # AST_identificador
+  opt_tipo = p[2]                           # AST_decorador_tipo | [AST_skippeable]
+  modificador_expresion = p[3]              # AST_argumentos | AST_expresion | AST_modificador_objeto | [AST_skippeable]
+  expresion_base = AST_expresion_identificador(identificador)
+  expresion = aplicarModificador(expresion_base, opt_tipo)
+  expresion = aplicarModificador(expresion, modificador_expresion)
+  p[0] = expresion
+
 def p_expresion_literal(p): # AST_expresion_literal | AST_expresion (_invocacion, _acceso, _index, ...)
   '''
-  expresion_sin_pre : NUMERO opt_modificador_expresion
-                    | STRING opt_modificador_expresion
+  expresion_sin_pre_ni_id : NUMERO opt_modificador_expresion
+                          | STRING opt_modificador_expresion
   '''
   literal = AST_expresion_literal(p[1]) # AST_expresion_literal
   modificador_expresion = p[2]          # AST_argumentos | AST_expresion | AST_modificador_objeto | [AST_skippeable]
@@ -1247,27 +1266,15 @@ def p_expresion_literal(p): # AST_expresion_literal | AST_expresion (_invocacion
 
 def p_expresion_format_string(p): # AST_format_string | AST_expresion (_invocacion, _acceso, _index, ...)
   '''
-  expresion_sin_pre : format_string opt_modificador_expresion
+  expresion_sin_pre_ni_id : format_string opt_modificador_expresion
   '''
   format_string = p[1]              # AST_format_string
   modificador_expresion = p[2]      # AST_argumentos | AST_expresion | AST_modificador_objeto | [AST_skippeable]
   p[0] = aplicarModificador(format_string, modificador_expresion)
 
-def p_expresion_identificador(p): # AST_expresion (_invocacion, _acceso, _index, ...)
-  '''
-  expresion_sin_pre : IDENTIFICADOR opt_decorador_identificador_tipo opt_modificador_expresion
-  '''
-  identificador = AST_identificador(p[1])   # AST_identificador
-  opt_tipo = p[3]                           # AST_decorador_tipo | [AST_skippeable]
-  modificador_expresion = p[2]              # AST_argumentos | AST_expresion | AST_modificador_objeto | [AST_skippeable]
-  expresion_base = AST_expresion_identificador(identificador)
-  expresion = aplicarModificador(expresion_base, opt_tipo)
-  expresion = aplicarModificador(expresion, modificador_expresion)
-  p[0] = expresion
-
 def p_expresion_function(p): # AST_expresion_funcion | AST_invocacion
   '''
-  expresion_sin_pre : DECL_FUNC s definicion_funcion
+  expresion_sin_pre_ni_id : DECL_FUNC s definicion_funcion
   '''
   declarador = AST_sintaxis(p[1])
   s = concatenar(declarador, p[2])      # [AST_skippeable]
@@ -1279,7 +1286,7 @@ def p_expresion_function(p): # AST_expresion_funcion | AST_invocacion
 
 def p_expresion_new(p): # AST_invocacion
   '''
-  expresion_sin_pre : NEW s IDENTIFICADOR s invocacion
+  expresion_sin_pre_ni_id : NEW s IDENTIFICADOR s invocacion
   '''
   new = AST_sintaxis(p[1])                  # AST_sintaxis
   s1 = concatenar(new, p[2])                # [AST_skippeable]
@@ -1292,14 +1299,14 @@ def p_expresion_new(p): # AST_invocacion
 
 def p_expresion_lista(p): # AST_expresion_lista
   '''
-  expresion_sin_pre : lista
+  expresion_sin_pre_ni_id : lista
   '''
   objeto = p[1]
   p[0] = objeto
 
 def p_expresion_parentesis(p): # AST_expresion
   '''
-  expresion_sin_pre : expresion_entre_parentesis
+  expresion_sin_pre_ni_id : expresion_entre_parentesis
   '''
   expresion = p[1] # AST_expresion
   p[0] = p[1]
@@ -1321,6 +1328,42 @@ def p_expresion_entre_parentesis(p): # AST_expresion
     modificador_expresion.apertura(cierra)
     modificador_expresion.apertura(abre)
   p[0] = aplicarModificador(expresion, modificador_expresion)
+
+def p_expresion_no_tipada_objeto(p):
+  '''
+  expresion_no_tipada : objeto
+  '''
+  p[0] = p[1]
+
+def p_expresion_no_tipada_con_pre(p):
+  '''
+  expresion_no_tipada : operador_prefijo s expresion_no_tipada
+  '''
+  operador = p[1]                 # string
+  s = concatenar(operador, p[2])  # [AST_skippeable]
+  expresion = p[3]                # AST_expresion
+  if isinstance(expresion, AST_operador) and expresion.esBinario() and not expresion.tieneParentesis():
+    expresion.izq = AST_operador(None, operador, expresion.izq)
+  else:
+    expresion = AST_operador(None, operador, expresion)
+  expresion.apertura(s)
+  p[0] = expresion
+
+def p_expresion_no_tipada_id(p):
+  '''
+  expresion_no_tipada : IDENTIFICADOR opt_modificador_expresion
+  '''
+  identificador = AST_identificador(p[1])   # AST_identificador
+  modificador_expresion = p[2]              # AST_argumentos | AST_expresion | AST_modificador_objeto | [AST_skippeable]
+  expresion_base = AST_expresion_identificador(identificador)
+  expresion = aplicarModificador(expresion_base, modificador_expresion)
+  p[0] = expresion
+
+def p_expresion_no_tipada_otros(p):
+  '''
+  expresion_no_tipada : expresion_sin_pre_ni_id
+  '''
+  p[0] = p[1]
 
 def p_opt_modificador_expresion_con_skip(p): # AST_cuerpo | AST_argumentos | AST_expresion | AST_modificador_objeto | [AST_skippeable]  {skip, comentario}
   '''
@@ -1410,7 +1453,7 @@ def p_operador_operador_binario(p): # AST_modificador_operador_binario
 
 def p_operador_operador_ternario(p): # AST_modificador_operador_ternario
   '''
-  operador : PREGUNTA s expresion DOS_PUNTOS s expresion
+  operador : PREGUNTA s expresion_no_tipada DOS_PUNTOS s expresion
   '''
   s1 = AST_sintaxis(p[1])     # AST_sintaxis
   s1 = concatenar(s1, p[2])   # [AST_skippeable]
