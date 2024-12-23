@@ -48,6 +48,7 @@ tokens = (
   'FORMAT_STRING_COMPLETE',
   'FLECHA',
   'PIPE',
+  'CASE',
   'SKIP'
 )
 
@@ -60,7 +61,8 @@ reserved_map = {
   'else':'ELSE',
   'implements':'IMPLEMENTS',
   'extends':'EXTENDS',
-  'new':'NEW'
+  'new':'NEW',
+  'case':'CASE'
 }
 
 for k in ['let','const','var']:
@@ -69,7 +71,7 @@ for k in ['let','const','var']:
 for k in ['class','interface']:
   reserved_map[k] = 'DECL_CLASS'
 
-for k in ['if','for','while']:
+for k in ['if','for','while','switch']:
   reserved_map[k] = 'COMBINADOR1'
 
 for k in ['try','finally']:
@@ -286,6 +288,7 @@ def p_skippeable_no_vacio(p):
     D -> {...}          D_OBJETO      AST_expresion_objeto
     D -> (...)          D_PARENT      AST_expresion
     D -> if|for|while   D_COMMAND     AST_combinador
+    D -> case           D_COMMAND     AST_combinador
     D -> !|-|++|--      D_PREFIX      AST_operador
     D -> return         D_RETURN      AST_return
     D -> import         D_IMPORT      AST_import
@@ -2034,7 +2037,7 @@ def p_declaracion_parentesis(p): # AST_expresion
   expresion = p[1] # AST_expresion
   p[0] = p[1]
 
-# DECLARACIÓN : COMBINADOR (if, for, while, try, finally)
+# DECLARACIÓN : COMBINADOR (if, for, while, else, switch, try, finally)
  #################################################################################################
 def p_declaracion_combinador(p): # AST_combinador
   '''
@@ -2139,6 +2142,24 @@ def p_selector_combinador_no_vacio(p): # AST_combinador
   '''
   selector = p[1]
   p[0] = selector
+
+# DECLARACIÓN : COMBINADOR (case)
+ #################################################################################################
+def p_declaracion_case(p): # AST_combinador
+  '''
+  declaracion_no_objeto : CASE s expresion_no_tipada DOS_PUNTOS s cuerpo_combinador
+  '''
+  clase = p[1]                        # string
+  abre = AST_sintaxis(clase)          # AST_sintaxis
+  abre = concatenar(abre, p[2])       # [AST_skippeable]
+  expresion = p[3]                    # AST_expresion
+  cierra = AST_sintaxis(p[4])         # AST_sintaxis
+  cierra = concatenar(cierra, p[5])   # [AST_skippeable]
+  cuerpo = p[6]                       # AST_cuerpo
+  combinador = AST_combinador(clase, expresion)
+  combinador.apertura(abre)
+  combinador.agregar_cuerpo(cuerpo)
+  p[0] = combinador
 
 # DECLARACIÓN : OPERADOR PREFIJO (!, -, ++, --)
  #################################################################################################
@@ -3386,8 +3407,12 @@ def modificador_con_skip(modificador, s):
 def aplicarModificador(nodo, mod):
   resultado = nodo
   if type(mod) is AST_modificador_objeto_acceso:
-    # ACCESO OBJETO: {nodo}.{mod}
-    resultado = AST_expresion_acceso(nodo, mod)
+    if isinstance(nodo, AST_tipo):
+      # TIPO {nodo}.{mod}
+      nodo.base = AST_expresion_acceso(nodo.base, mod)
+    else:
+      # ACCESO OBJETO: {nodo}.{mod}
+      resultado = AST_expresion_acceso(nodo, mod)
   elif type(mod) is AST_modificador_objeto_index:
     # INDEX OBJETO: {nodo} [ {mod} ]
     resultado = AST_expresion_index(nodo, mod)
