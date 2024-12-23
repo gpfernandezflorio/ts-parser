@@ -75,7 +75,7 @@ for k in ['return','throw']:
 for k in ['in','of']:
   reserved_map[k] = 'ITERADOR'
 
-for k in ['abstract','static','private','protected','readonly','get','set', 'type']:
+for k in ['abstract','static','private','protected','readonly','type']:
   reserved_map[k] = 'PRE_MOD_UNARIO'
 
 def t_IDENTIFICADOR(t):
@@ -373,9 +373,16 @@ def p_modificador_funcion_no_vacio(p): # [AST_skippeable]                      {
   '''
   p[0] = p[1]
 
-def p_modificador_funcion_modificador_expresion(p): # AST_argumentos
+def p_modificador_funcion_modificador_expresion(p): # AST_modificador
   '''
   modificador_funcion_no_vacio : modificador_expresion_no_vacio
+  '''
+  modificador_expresion = p[1]  # AST_modificador
+  p[0] = modificador_expresion
+
+def p_modificador_funcion_invocacion(p): # AST_argumentos
+  '''
+  modificador_funcion_no_vacio : invocacion
   '''
   modificador_expresion = p[1]  # AST_argumentos
   p[0] = modificador_expresion
@@ -926,7 +933,7 @@ def p_modificador_asignable_cierre(p): # [AST_skippeable]
 
 def p_modificador_objeto_acceso(p): # AST_modificador_objeto_acceso
   '''
-  modificador_objeto_expresion_no_vacio : ACCESO s IDENTIFICADOR opt_modificador_expresion
+  modificador_objeto_expresion_no_vacio : ACCESO s IDENTIFICADOR opt_modificador_expresion_o_invocacion
   '''
   punto = AST_sintaxis(p[1])
   s = concatenar(punto, p[2])       # [AST_skippeable]
@@ -939,7 +946,7 @@ def p_modificador_objeto_acceso(p): # AST_modificador_objeto_acceso
 
 def p_modificador_objeto_index(p): # AST_modificador_objeto_index
   '''
-  modificador_objeto_expresion_no_vacio : ABRE_CORCHETE s expresion CIERRA_CORCHETE opt_modificador_expresion
+  modificador_objeto_expresion_no_vacio : ABRE_CORCHETE s expresion CIERRA_CORCHETE opt_modificador_expresion_o_invocacion
   '''
   abre = AST_sintaxis(p[1])
   s = concatenar(abre, p[2])  # [AST_skippeable]
@@ -951,6 +958,18 @@ def p_modificador_objeto_index(p): # AST_modificador_objeto_index
   modificador.clausura(cierra)
   modificador.modificador_adicional(opt_adicional)
   p[0] = modificador
+
+def p_opt_modificador_expresion_o_invocacion_invocacion(p):
+  '''
+  opt_modificador_expresion_o_invocacion : invocacion
+  '''
+  p[0] = p[1]
+
+def p_opt_modificador_expresion_o_invocacion_modificador(p):
+  '''
+  opt_modificador_expresion_o_invocacion : opt_modificador_expresion
+  '''
+  p[0] = p[1]
 
 def p_asignacion(p): # AST_expresion
   '''
@@ -1032,16 +1051,16 @@ def p_expresion_asignada_funcion(p): # AST_expresion_funcion | AST_invocacion
 
 def p_expresion_asignada_new(p): # AST_invocacion
   '''
-  expresion_asignada_sin_pre : NEW s IDENTIFICADOR s invocacion
+  expresion_asignada_sin_pre : NEW s expresion_sin_invocacion s invocacion
   '''
   new = AST_sintaxis(p[1])                  # AST_sintaxis
   s1 = concatenar(new, p[2])                # [AST_skippeable]
-  identificador = AST_identificador(p[3])   # AST_identificador
+  clase = p[3]                              # AST_expresion
   s2 = p[4]                                 # [AST_skippeable]
   argumentos = p[5]                         # AST_argumentos
-  identificador.apertura(s1)
-  identificador.clausura(s2)
-  p[0] = aplicarModificador(identificador, argumentos)
+  clase.apertura(s1)
+  clase.clausura(s2)
+  p[0] = aplicarModificador(clase, argumentos)
 
 def p_expresion_asignada_objeto(p): # AST_expresion_objeto
   '''
@@ -1201,16 +1220,38 @@ def p_cuerpo_abstraccion_cuerpo(p): # AST_cuerpo
 
 ## -- EXPRESIONES --
 
+def p_expresion_invocacion(p): # AST_expresion
+  '''
+  expresion : expresion_sin_invocacion s opt_invocacion
+  '''
+  expresion = p[1]          # AST_expresion
+  s = p[2]                  # [AST_skippeable]
+  opt_invocacion = p[3]     # AST_argumentos | [AST_skippeable]
+  expresion.clausura(s)
+  p[0] = aplicarModificador(expresion, opt_invocacion)
+
+def p_opt_invocacion_si(p): # AST_argumentos
+  '''
+  opt_invocacion : invocacion
+  '''
+  p[0] = p[1]
+
+def p_opt_invocacion_no(p): # [AST_skippeable]
+  '''
+  opt_invocacion : vacio
+  '''
+  p[0] = p[1]
+
 def p_expresion_objeto(p): # AST_expresion_objeto
   '''
-  expresion : objeto
+  expresion_sin_invocacion : objeto
   '''
   objeto = p[1]
   p[0] = objeto
 
-def p_expresion_no_objeto(p): # AST_expresion_objeto
+def p_expresion_no_objeto(p): # AST_expresion
   '''
-  expresion : expresion_no_obj
+  expresion_sin_invocacion : expresion_no_obj
   '''
   expresion = p[1]
   p[0] = expresion
@@ -1286,16 +1327,16 @@ def p_expresion_function(p): # AST_expresion_funcion | AST_invocacion
 
 def p_expresion_new(p): # AST_invocacion
   '''
-  expresion_sin_pre_ni_id : NEW s IDENTIFICADOR s invocacion
+  expresion_sin_pre_ni_id : NEW s expresion_sin_invocacion s invocacion
   '''
   new = AST_sintaxis(p[1])                  # AST_sintaxis
   s1 = concatenar(new, p[2])                # [AST_skippeable]
-  identificador = AST_identificador(p[3])   # AST_identificador
+  clase = p[3]                              # AST_expresion
   s2 = p[4]                                 # [AST_skippeable]
   argumentos = p[5]                         # AST_argumentos
-  identificador.apertura(s1)
-  identificador.clausura(s2)
-  p[0] = aplicarModificador(identificador, argumentos)
+  clase.apertura(s1)
+  clase.clausura(s2)
+  p[0] = aplicarModificador(clase, argumentos)
 
 def p_expresion_lista(p): # AST_expresion_lista
   '''
@@ -1325,8 +1366,12 @@ def p_expresion_entre_parentesis(p): # AST_expresion
     expresion.apertura(abre)
     expresion.clausura(cierra)
   else: # Debería ser una lista vacía
-    modificador_expresion.apertura(cierra)
-    modificador_expresion.apertura(abre)
+    if isinstance(modificador_expresion, AST_nodo):
+      modificador_expresion.apertura(cierra)
+      modificador_expresion.apertura(abre)
+    else:
+      expresion = abre
+      expresion.clausura(cierra)
   p[0] = aplicarModificador(expresion, modificador_expresion)
 
 def p_expresion_no_tipada_objeto(p):
@@ -1404,13 +1449,6 @@ def p_modificador_expresion_acceso(p): # AST_modificador_objeto
   '''
   modificador_objeto = p[1] # AST_modificador_objeto
   p[0] = modificador_objeto
-
-def p_modificador_expresion_invocacion(p): # AST_argumentos
-  '''
-  modificador_expresion_no_vacio : invocacion
-  '''
-  invocacion = p[1] # AST_argumentos
-  p[0] = invocacion
 
 def p_modificador_expresion_operador_binario(p): # AST_modificador_operador
   '''
@@ -1592,6 +1630,13 @@ def p_modificador_invocacion_objeto(p): # AST_argumentos | AST_modificador_opera
   '''
   modificador_objeto = p[1]
   p[0] = modificador_objeto
+
+def p_modificador_invocacion_invocacion(p): # AST_argumentos
+  '''
+  modificador_invocacion_no_vacio : invocacion
+  '''
+  invocacion = p[1]
+  p[0] = invocacion
 
 def p_modificador_invocacion_cierre(p): # [AST_skippeable]
   '''
