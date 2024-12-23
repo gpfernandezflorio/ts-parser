@@ -462,13 +462,13 @@ casos_de_test = [
   ]),
   Test("Comandos compuestos",
     "if ( t < 10 ) { i -- ; }\nwhile(true){}\nfor (var i=0; i<=10; i++){i*=2}",[
-    t('COMBINADOR','if',1,1,0),
+    t('COMBINADOR1','if',1,1,0),
     t('SKIP',' ',1,3,2),
     t('ABRE_PAREN','(',1,4,3),
     t('SKIP',' ',1,5,4),
     id('t',1,6,5),
     t('SKIP',' ',1,7,6),
-    t('OPERADOR_BOOLEANO','<',1,8,7),
+    t('MENOR','<',1,8,7),
     t('SKIP',' ',1,9,8),
     n('10',1,10,9),
     t('SKIP',' ',1,12,11),
@@ -484,14 +484,14 @@ casos_de_test = [
     t('SKIP',' ',1,23,22),
     t('CIERRA_LLAVE','}',1,24,23),
     t('SKIP','\n',1,25,24),
-    t('COMBINADOR','while',2,1,25),
+    t('COMBINADOR1','while',2,1,25),
     t('ABRE_PAREN','(',2,6,30),
     id('true',2,7,31),
     t('CIERRA_PAREN',')',2,11,35),
     t('ABRE_LLAVE','{',2,12,36),
     t('CIERRA_LLAVE','}',2,13,37),
     t('SKIP','\n',2,14,38),
-    t('COMBINADOR','for',3,1,39),
+    t('COMBINADOR1','for',3,1,39),
     t('SKIP',' ',3,4,42),
     t('ABRE_PAREN','(',3,5,43),
     t('DECL_VAR','var',3,6,44),
@@ -549,22 +549,23 @@ def evaluar(test):
     return True
   esperado = test.ast
   obtenido = parsear(test.input)
+  elementos_obtenidos = obtenido.declaraciones
   i = 0
-  while i < len(esperado) and i < len(obtenido):
-    if str(obtenido[i]) != str(esperado[i]):
+  while i < len(esperado) and i < len(elementos_obtenidos):
+    if str(elementos_obtenidos[i]) != str(esperado[i]):
       print("Error en test: "+test.desc)
-      print("Se esperaba:\n"+clean_str(esperado[i])+"\n pero se obtuvo:\n"+clean_str(obtenido[i]))
+      print(f"Como {i}° elemento se esperaba:\n{clean_str(esperado[i])}\n pero se obtuvo:\n{clean_str(elementos_obtenidos[i])}")
       return True
     i += 1
-  if len(obtenido) > i:
+  if len(elementos_obtenidos) > i:
     print("Error en test: "+test.desc)
-    print("Se generaron " + str(len(obtenido)-i) + " términos adicionales")
+    print("Se generaron " + str(len(elementos_obtenidos)-i) + " términos adicionales")
     return True
   if len(esperado) > i:
     print("Error en test: "+test.desc)
     print("Faltó generar " + str(len(esperado)-i) + " términos")
     return True
-  restore = "".join(list(map(lambda x : x.restore(), obtenido)))
+  restore = obtenido.restore()
   if restore != test.input:
     print("Error en test: "+test.desc)
     print("La entrada original era:")

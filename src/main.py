@@ -8,7 +8,10 @@ archivosTest = [
   "../../blockly/core/bubbles/mini_workspace_bubble.ts",
   "../../blockly/core/bubbles/text_bubble.ts",
   "../../blockly/core/bubbles/textinput_bubble.ts",
-  "../../blockly/core/bubbles.ts"
+  "../../blockly/core/bubbles.ts",
+  "../../blockly/core/bubble_dragger.ts",
+  "../../blockly/core/clipboard/block_paster.ts",
+  "../../blockly/core/clipboard/registry.ts"
 ]
 
 def main():
@@ -31,7 +34,7 @@ def parsearArchivo(nombreArchivo):
   ast = parsear(contenido)
   # mostrarAST(ast)
   z = ""
-  for a in ast:
+  for a in ast.declaraciones:
     z += a.restore()
   if eq_string(contenido, z):
     print("Restauración exitosa")
