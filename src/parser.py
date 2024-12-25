@@ -44,7 +44,8 @@ tokens = (
   'NEW',
   'DOS_PUNTOS',
   'PUNTO_Y_COMA',
-  'ACCESO',
+  'ACCESO1',
+  'ACCESO2',
   'COMA',
   'FORMAT_STRING_COMPLETE',
   'FLECHA',
@@ -76,7 +77,7 @@ for k in ['class','interface']:
 for k in ['if','for','while','switch','catch']:
   reserved_map[k] = 'COMBINADOR1'
 
-for k in ['try','finally']:
+for k in ['try','finally','do']:
   reserved_map[k] = 'COMBINADOR2'
 
 for k in ['return','throw']:
@@ -105,7 +106,7 @@ t_ABRE_LLAVE = r'{'
 t_CIERRA_LLAVE = r'}'
 t_ABRE_CORCHETE = r'\['
 t_CIERRA_CORCHETE = r'\]'
-t_OPERADOR_PREFIJO = r'!'
+t_OPERADOR_PREFIJO = r'!|\.\.\.'
 t_OPERADOR_INFIJO = r'\+\+|--'
 t_OPERADOR_BOOLEANO = r'===|!==|==|!=|>=|<=|&&|\|\||\?\?'
 t_FLECHA = r'=>'
@@ -119,7 +120,8 @@ t_MENOR = r'<'
 t_MAYOR = r'>'
 t_DOS_PUNTOS = r':'
 t_PUNTO_Y_COMA = r';'
-t_ACCESO = r'\.|\?\.|\!\.'
+t_ACCESO1 = r'\.'
+t_ACCESO2 = r'\?\.|\!\.'
 t_COMA = r','
 def t_FORMAT_STRING_COMPLETE(t):
   r'(`[^`]*`)'
@@ -142,18 +144,22 @@ precedence = (
   ('left', 'VACIO'),
   ('left', 'ESPACIOS'),
   ('left', 'COMENTARIO_ML', 'COMENTARIO_UL', 'SKIP'),
-  ('left', 'MENOR'),
+  ('left', 'MENOR','MAYOR'),
   ('left', 'ABRE_PAREN'),
   ('left', 'ABRE_CORCHETE'),
   ('left', 'ABRE_LLAVE'),
   ('left', 'PUNTO_Y_COMA'),
   ('left', 'DOS_PUNTOS'),
+  ('left', 'POR','DIV'),
   ('left', 'OPERADOR_PREFIJO'),
   ('left', 'MENOS','MAS'),
-  ('left', 'ACCESO'),
+  ('left', 'ACCESO1', 'ACCESO2'),
+  ('left', 'FLECHA'),
+  ('left', 'OPERADOR_BOOLEANO'),
   ('left', 'IDENTIFICADOR'),
   ('left', 'PREGUNTA'),
   ('left', 'PIPE'),
+  ('left', 'AS'),
 )
 
 def tokenizar(contenido):
@@ -441,11 +447,13 @@ def p_identificadores_vacio(p): # [AST_identificador]
 
 def p_identificadores_primer_identificador(p): # [AST_identificador]
   '''
-  identificadores : identificador_con_modificadores_pre opt_decorador_parametro mas_identificadores
+  identificadores : opt_prefijo identificador_con_modificadores_pre opt_decorador_parametro mas_identificadores
   '''
-  identificador = p[1]      # AST_identificador
-  opt_mod = p[2]            # AST_decorador | [AST_skippeable]
-  rec = p[3]                # [AST_identificador] | [AST_skippeable]
+  opt_pre = p[1]            # [AST_skippeable]
+  identificador = p[2]      # AST_identificador
+  opt_mod = p[3]            # AST_decorador | [AST_skippeable]
+  rec = p[4]                # [AST_identificador] | [AST_skippeable]
+  identificador.apertura(opt_pre)
   identificador = aplicarModificador(identificador, opt_mod)
   if len(rec) > 0 and type(rec[0]) is AST_identificador:
     rec.insert(0, identificador)
@@ -472,6 +480,18 @@ def p_mas_identificadores(p): # [AST_identificador] | [AST_skippeable]
   else:
     rec = concatenar(s, rec)
   p[0] = rec
+
+def p_opt_prefijo_vacio(p): # [AST_skippeable]
+  '''
+  opt_prefijo : vacio
+  '''
+  p[0] = p[1]
+
+def p_opt_prefijo_prefijo(p): # [AST_skippeable]
+  '''
+  opt_prefijo : OPERADOR_PREFIJO
+  '''
+  p[0] = AST_sintaxis(p[1])
 
 def p_opt_decorador_declaracion_clase_con_skip(p): # AST_decorador_opcional | AST_decorador_tipo | [AST_skippeable]
   '''
@@ -709,7 +729,7 @@ def p_modificador_tipo_suma(p): # AST_tipo_suma
 
 def p_modificador_tipo_acceso(p): # AST_modificador_objeto_acceso
   '''
-  modificador_tipo : ACCESO s IDENTIFICADOR opt_modificador_tipo
+  modificador_tipo : operador_acceso s nombre opt_modificador_tipo
   '''
   s = AST_sintaxis(p[1])                  # AST_sintaxis
   s = concatenar(s, p[2])                 # [AST_skippeable]
@@ -719,6 +739,20 @@ def p_modificador_tipo_acceso(p): # AST_modificador_objeto_acceso
   modificador.apertura(s)
   modificador.modificador_adicional(opt_adicional)
   p[0] = modificador
+
+def p_operador_acceso(p): # string
+  '''
+  operador_acceso : ACCESO1
+                  | ACCESO2
+  '''
+  p[0] = p[1]
+
+def p_nombre(p): # string
+  '''
+  nombre : IDENTIFICADOR
+         | FROM
+  '''
+  p[0] = p[1]
 
 def p_modificador_tipo_clase(p): # AST_tipo_tupla
   '''
@@ -749,6 +783,16 @@ def p_tipo_parentesis(p): # AST_tipo (puede ser AST_tipo_funcion o un AST_tipo c
   opt_adicional = p[4]      # AST_tipo_lista | AST_tipo_suma | AST_modificador_objeto_acceso | [AST_skippeable]
   rec.apertura(s)
   rec.modificador_adicional(opt_adicional)
+  p[0] = rec
+
+def p_tipo_new(p): # AST_tipo
+  '''
+  tipo_sin_id : NEW s tipo
+  '''
+  s = AST_sintaxis(p[1])    # AST_sintaxis
+  s = concatenar(s, p[2])   # AST_skippeable
+  rec = p[3]                # AST_tipo
+  rec.apertura(s)
   p[0] = rec
 
 def p_tipo_o_parametros_tipo(p): # AST_tipo (entre paréntesis)
@@ -846,7 +890,7 @@ def p_declaracion_variable(p): # AST_declaracion_variable
   declarador = AST_sintaxis(p[1])
   s = concatenar(declarador, p[2])        # [AST_skippeable]
   identificador = p[3]                    # AST_identificador | AST_identificadores
-  modificador_variable = p[4]             # AST_expresion | AST_modificador_variable_adicional | [AST_skippeable]
+  modificador_variable = p[4]             # AST_modificador_asignacion | AST_iterador | AST_modificador_variable_adicional | [AST_skippeable]
   decl_var = AST_declaracion_variable(identificador)
   decl_var.apertura(s)
   decl_var = aplicarModificador(decl_var, modificador_variable)
@@ -880,19 +924,19 @@ def p_identificador_varios(p): # AST_identificadores
   identificadores.clausura(cierra)
   p[0] = identificadores
 
-def p_opt_modificador_variable_con_skip(p): # AST_expresion         {skip, comentario}
+def p_opt_modificador_variable_con_skip(p): # AST_modificador_asignacion | AST_iterador | AST_modificador_variable_adicional | [AST_skippeable] {skip, comentario}
   '''
   opt_modificador_variable : sf modificador_variable
   '''
   s = p[1]                  # [AST_skippeable]
-  modificador = p[2]        # AST_expresion | [AST_skippeable]
+  modificador = p[2]        # AST_modificador_asignacion | [AST_skippeable]
   p[0] = modificador_con_skip(modificador, s)
 
-def p_opt_modificador_variable_sin_skip(p): # AST_expresion         {=, ;}
+def p_opt_modificador_variable_sin_skip(p): # AST_modificador_asignacion | AST_iterador | AST_modificador_variable_adicional | [AST_skippeable] {=, in, ,, ;}
   '''
   opt_modificador_variable : modificador_variable
   '''
-  modificador_variable = p[1]       # AST_expresion | [AST_skippeable]
+  modificador_variable = p[1]       # AST_modificador_asignacion | [AST_skippeable]
   p[0] = modificador_variable
 
 def p_modificador_variable_vacio(p): # [AST_skippeable]         {lambda}
@@ -901,17 +945,19 @@ def p_modificador_variable_vacio(p): # [AST_skippeable]         {lambda}
   '''
   p[0] = []
 
-def p_modificador_variable_no_vacio(p): # [AST_skippeable]         {lambda}
+def p_modificador_variable_no_vacio(p): # AST_modificador_asignacion | AST_iterador | AST_modificador_variable_adicional
   '''
   modificador_variable : modificador_variable_no_vacio
   '''
   p[0] = p[1]
 
-def p_modificador_variable_asignacion(p): # AST_expresion
+def p_modificador_variable_asignacion(p): # AST_modificador_asignacion
   '''
   modificador_variable_no_vacio : asignacion opt_mas_variables
   '''
-  asignacion = p[1]       # AST_expresion
+  asignacion = p[1]       # AST_modificador_asignacion
+  opt_adicional = p[2]    # AST_modificador_variable_adicional | [AST_skippeable]
+  asignacion.modificador_adicional(opt_adicional)
   p[0] = asignacion
 
 def p_modificador_variable_iteracion(p): # AST_iterador
@@ -937,7 +983,7 @@ def p_mas_variables_vacio(p): # [AST_skippeable]
   '''
   p[0] = p[1]
 
-def p_mas_variables_no_vacio(p): # [AST_skippeable]
+def p_mas_variables_no_vacio(p): # AST_modificador_variable_adicional
   '''
   opt_mas_variables : mas_variables
   '''
@@ -950,7 +996,8 @@ def p_mas_variables(p): # AST_modificador_variable_adicional
   s = AST_sintaxis(p[1])
   s = concatenar(s, p[2])
   identificador = p[3]                    # AST_identificador
-  modificador_variable = p[4]             # AST_expresion | AST_modificador_variable_adicional | [AST_skippeable]
+  modificador_variable = p[4]             # AST_modificador_asignacion | AST_modificador_variable_adicional | [AST_skippeable]
+  identificador.apertura(s)
   modificador = AST_modificador_variable_adicional(identificador)
   modificador.modificador_adicional(modificador_variable)
   p[0] = modificador
@@ -969,10 +1016,10 @@ def p_declaracion_id(p): # AST_invocacion | AST_asignacion | AST_identificador |
   declaracion_no_objeto : identificador_con_modificadores_pre opt_modificador_asignable
   '''
   identificador = p[1]      # AST_identificador | AST_identificadores
-  modificador = p[2]        # AST_argumentos | AST_expresion | AST_modificador_objeto | AST_modificador_operador | [AST_skippeable]
+  modificador = p[2]        # AST_argumentos | AST_modificador_asignacion | AST_modificador_objeto | AST_modificador_operador | [AST_skippeable]
   p[0] = aplicarModificador(identificador, modificador)
 
-def p_opt_modificador_asignable_con_skip(p): # AST_argumentos | AST_expresion | AST_modificador_objeto | AST_modificador_operador {skip, comentario}
+def p_opt_modificador_asignable_con_skip(p): # AST_argumentos | AST_modificador_asignacion | AST_modificador_objeto | AST_modificador_operador {skip, comentario}
   '''
   opt_modificador_asignable : sf modificador_asignable
   '''
@@ -980,11 +1027,11 @@ def p_opt_modificador_asignable_con_skip(p): # AST_argumentos | AST_expresion | 
   modificador = p[2]              # AST_argumentos | AST_expresion | AST_modificador_objeto | [AST_skippeable]
   p[0] = modificador_con_skip(modificador, s)
 
-def p_opt_modificador_asignable_sin_skip(p): # AST_argumentos | AST_expresion | AST_modificador_objeto {=, (, ., [}
+def p_opt_modificador_asignable_sin_skip(p): # AST_argumentos | AST_modificador_asignacion | AST_modificador_objeto {=, (, ., [}
   '''
   opt_modificador_asignable : modificador_asignable
   '''
-  modificador_asignable = p[1]       # AST_argumentos | AST_expresion
+  modificador_asignable = p[1]       # AST_argumentos | AST_modificador_asignacion | AST_modificador_objeto
   p[0] = modificador_asignable
 
 def p_modificador_asignable_vacio(p): # [AST_skippeable]         {lambda}
@@ -993,17 +1040,17 @@ def p_modificador_asignable_vacio(p): # [AST_skippeable]         {lambda}
   '''
   p[0] = []
 
-def p_modificador_asignable_no_vacio(p): # AST_expresion | AST_modificador_objeto | AST_argumentos | AST_modificador_operador
+def p_modificador_asignable_no_vacio(p): # AST_modificador_asignacion | AST_modificador_objeto | AST_argumentos | AST_modificador_operador
   '''
   modificador_asignable : modificador_asignable_no_vacio
   '''
   p[0] = p[1]
 
-def p_modificador_asignable_asignacion(p): # AST_expresion
+def p_modificador_asignable_asignacion(p): # AST_modificador_asignacion
   '''
   modificador_asignable_no_vacio : asignacion
   '''
-  asignacion = p[1]       # AST_expresion
+  asignacion = p[1]       # AST_modificador_asignacion
   p[0] = asignacion
 
 def p_modificador_asignable_modificador_objeto(p): # AST_modificador_objeto | AST_argumentos
@@ -1040,7 +1087,7 @@ def p_modificador_asignable_cierre(p): # [AST_skippeable]
 
 def p_modificador_objeto_acceso(p): # AST_modificador_objeto_acceso
   '''
-  modificador_objeto_expresion_no_vacio : ACCESO s IDENTIFICADOR opt_modificador_expresion_o_invocacion
+  modificador_objeto_expresion_no_vacio : operador_acceso s nombre opt_modificador_expresion_o_invocacion
   '''
   punto = AST_sintaxis(p[1])
   s = concatenar(punto, p[2])       # [AST_skippeable]
@@ -1085,7 +1132,7 @@ def p_opt_modificador_expresion_o_invocacion_modificador(p):
   '''
   p[0] = p[1]
 
-def p_asignacion(p): # AST_expresion
+def p_asignacion(p): # AST_modificador_asignacion
   '''
   asignacion : simbolo_asignacion s expresion_asignada opt_cierre
   '''
@@ -1095,7 +1142,7 @@ def p_asignacion(p): # AST_expresion
   cierre = p[4]                       # [AST_skippeable]
   expresion.apertura(s)
   expresion.clausura(cierre)
-  p[0] = expresion
+  p[0] = AST_modificador_asignacion(expresion)
 
 def p_simbolo_asignacion(p): # string
   '''
@@ -1165,18 +1212,16 @@ def p_expresion_asignada_funcion(p): # AST_expresion_funcion | AST_invocacion
     rec = AST_expresion_funcion(rec)
   p[0] = rec
 
-def p_expresion_asignada_new(p): # AST_invocacion
+def p_expresion_asignada_new(p): # AST_expresion
   '''
-  expresion_asignada_sin_pre : NEW s expresion_sin_invocacion s invocacion
+  expresion_asignada_sin_pre : NEW s expresion opt_modificador_expresion_asignada
   '''
   new = AST_sintaxis(p[1])                  # AST_sintaxis
   s1 = concatenar(new, p[2])                # [AST_skippeable]
   clase = p[3]                              # AST_expresion
-  s2 = p[4]                                 # [AST_skippeable]
-  argumentos = p[5]                         # AST_argumentos
+  opt_adicional = p[4]                      # AST_cuerpo | AST_argumentos | AST_expresion | AST_modificador_objeto | [AST_skippeable]
   clase.apertura(s1)
-  clase.clausura(s2)
-  p[0] = aplicarModificador(clase, argumentos)
+  p[0] = aplicarModificador(clase, opt_adicional)
 
 def p_expresion_asignada_objeto(p): # AST_expresion_objeto
   '''
@@ -1277,7 +1322,7 @@ def p_modificador_expresion_asignada_funcion(p): # AST_cuerpo
 
 def p_modificador_objeto_comando_acceso(p): # AST_modificador_objeto_acceso
   '''
-  modificador_objeto_comando_no_vacio : ACCESO s IDENTIFICADOR opt_modificador_asignable
+  modificador_objeto_comando_no_vacio : operador_acceso s nombre opt_modificador_asignable
   '''
   punto = AST_sintaxis(p[1])
   s = concatenar(punto, p[2])       # [AST_skippeable]
@@ -1402,7 +1447,7 @@ def p_expresion_sin_identificador(p): # AST_expresion (_invocacion, _acceso, _in
 
 def p_expresion_identificador(p): # AST_expresion (_invocacion, _acceso, _index, ...)
   '''
-  expresion_sin_pre : IDENTIFICADOR opt_decorador_identificador opt_modificador_expresion
+  expresion_sin_pre : IDENTIFICADOR opt_decorador_identificador opt_modificador_asignable
   '''
   identificador = AST_identificador(p[1])   # AST_identificador
   opt_tipo = p[2]                           # AST_decorador_tipo | [AST_skippeable]
@@ -1443,16 +1488,14 @@ def p_expresion_function(p): # AST_expresion_funcion | AST_invocacion
 
 def p_expresion_new(p): # AST_invocacion
   '''
-  expresion_sin_pre_ni_id : NEW s expresion_sin_invocacion s invocacion
+  expresion_sin_pre_ni_id : NEW s expresion opt_modificador_expresion
   '''
   new = AST_sintaxis(p[1])                  # AST_sintaxis
   s1 = concatenar(new, p[2])                # [AST_skippeable]
   clase = p[3]                              # AST_expresion
-  s2 = p[4]                                 # [AST_skippeable]
-  argumentos = p[5]                         # AST_argumentos
+  opt_adicional = p[4]                      # AST_argumentos | AST_expresion | AST_modificador_objeto | [AST_skippeable]
   clase.apertura(s1)
-  clase.clausura(s2)
-  p[0] = aplicarModificador(clase, argumentos)
+  p[0] = aplicarModificador(clase, opt_adicional)
 
 def p_expresion_lista(p): # AST_expresion_lista
   '''
@@ -1487,7 +1530,8 @@ def p_expresion_entre_parentesis(p): # AST_expresion
       modificador_expresion.apertura(cierra)
       modificador_expresion.apertura(abre)
     else:
-      expresion = abre
+      expresion = AST_nodo()
+      expresion.apertura(abre)
       expresion.clausura(cierra)
   p[0] = aplicarModificador(expresion, modificador_expresion)
 
@@ -1697,7 +1741,7 @@ def p_mas_argumentos(p): # AST_argumentos
   coma = AST_sintaxis(p[1])
   s = concatenar(coma, p[2])  # [AST_skippeable]
   argumentos = p[3]           # AST_argumentos
-  argumentos.apertura_temporal(s)
+  argumentos.apertura(s)
   p[0] = argumentos
 
 def p_fin_argumentos(p): # AST_argumentos
@@ -1910,7 +1954,7 @@ def p_mas_elementos(p): # AST_elementos
   coma = AST_sintaxis(p[1])
   s = concatenar(coma, p[2])  # [AST_skippeable]
   elementos = p[3]           # AST_elementos
-  elementos.apertura_temporal(s)
+  elementos.apertura(s)
   p[0] = elementos
 
 def p_fin_elementos(p): # AST_elementos
@@ -1945,7 +1989,7 @@ def p_modificador_objeto_expresion_vacio(p): # [AST_skippeable]
   '''
   p[0] = []
 
-def p_modificador_objeto_expresion_asignacion(p): # AST_expresion
+def p_modificador_objeto_expresion_asignacion(p): # AST_modificador_asignacion
   '''
   modificador_objeto_expresion : asignacion
   '''
@@ -2129,17 +2173,20 @@ def p_combinador(p): # AST_combinador
   combinador : selector_combinador_no_vacio cuerpo_combinador
   '''
   combinador = p[1] # AST_combinador
-  cuerpo = p[2]     # AST_cuerpo
+  cuerpo = p[2]     # AST_cuerpo | [AST_skippeable]
   combinador.agregar_cuerpo(cuerpo)
   p[0] = combinador
 
-def p_cuerpo_combinador_con_llaves(p): # AST_cuerpo
+def p_cuerpo_combinador_con_llaves(p): # AST_cuerpo | [AST_skippeable]
   '''
-  cuerpo_combinador : cuerpo s opt_cierre
+  cuerpo_combinador : opt_cuerpo opt_cierre
   '''
-  cuerpo = p[1]
-  cierre = concatenar(p[2], p[3])
-  cuerpo.clausura(cierre)
+  cuerpo = p[1]                   # AST_cuerpo | [AST_skippeable]
+  cierre = p[2]                   # [AST_skippeable]
+  if isinstance(cuerpo, AST_cuerpo):
+    cuerpo.clausura(cierre)
+  else:
+    cuerpo = concatenar(cuerpo, cierre)
   p[0] = cuerpo
 
 def p_cuerpo_combinador_sin_llaves(p): # AST_cuerpo
@@ -2149,6 +2196,18 @@ def p_cuerpo_combinador_sin_llaves(p): # AST_cuerpo
   contenido = p[1]               # AST_declaracion
   programa = AST_cuerpo([contenido])
   p[0] = programa
+
+def p_opt_cuerpo_vacio(p): # [AST_skippeable]
+  '''
+  opt_cuerpo : vacio
+  '''
+  p[0] = p[1]
+
+def p_opt_cuerpo_cuerpo(p): # AST_cuerpo
+  '''
+  opt_cuerpo : cuerpo
+  '''
+  p[0] = p[1]
 
 def p_selector_combinador_simple_1(p): # AST_combinador
   '''
@@ -2511,7 +2570,7 @@ def p_declaracion_dentro_de_clase_con_pre(p):
   '''
   declaracion = p[1]                  # AST_identificador
   opt_decorador = p[2]                # AST_decorador | [AST_skippeable]
-  opt_modificador_adicional = p[3]    # AST_expresion | AST_expresion_funcion | [AST_skippeable]
+  opt_modificador_adicional = p[3]    # AST_modificador_asignacion | AST_expresion_funcion | [AST_skippeable]
   declaracion = aplicarModificador(declaracion, opt_decorador)
   declaracion = aplicarModificador(declaracion, opt_modificador_adicional)
   p[0] = declaracion
@@ -2562,19 +2621,15 @@ def p_identificadores_con_modificadores_pre(p): # AST_identificadores
   identificadores.clausura(cierra)
   p[0] = identificadores
 
-def p_opt_modificador_dentro_de_clase_con_skip(p): # AST_expresion | AST_expresion_funcion | [AST_skippeable]
+def p_opt_modificador_dentro_de_clase_con_skip(p): # AST_modificador_asignacion | AST_expresion_funcion | [AST_skippeable]
   '''
   opt_modificador_dentro_de_clase : sf modificador_dentro_de_clase
   '''
   s = p[1]
-  modificador = p[2] # AST_expresion | [AST_skippeable]
-  if isinstance(modificador, AST_expresion):
-    modificador.apertura(s)
-  else:
-    modificador = concatenar(modificador, s)
-  p[0] = modificador
+  modificador = p[2] # AST_modificador_asignacion | [AST_skippeable]
+  p[0] = modificador_con_skip(modificador, s)
 
-def p_opt_modificador_dentro_de_clase_sin_skip(p): # AST_expresion | AST_expresion_funcion | [AST_skippeable]
+def p_opt_modificador_dentro_de_clase_sin_skip(p): # AST_modificador_asignacion | AST_expresion_funcion | [AST_skippeable]
   '''
   opt_modificador_dentro_de_clase : modificador_dentro_de_clase
   '''
@@ -2592,17 +2647,17 @@ def p_modificador_dentro_de_clase_cierre(p): # [AST_skippeable]
   '''
   p[0] = p[1]
 
-def p_modificador_dentro_de_clase_no_vacio(p): # AST_expresion | AST_expresion_funcion
+def p_modificador_dentro_de_clase_no_vacio(p): # AST_modificador_asignacion | AST_expresion_funcion
   '''
   modificador_dentro_de_clase : modificador_dentro_de_clase_no_vacio
   '''
   p[0] = p[1]
 
-def p_modificador_dentro_de_clase_asignacion(p): # AST_expresion
+def p_modificador_dentro_de_clase_asignacion(p): # AST_modificador_asignacion
   '''
   modificador_dentro_de_clase_no_vacio : asignacion
   '''
-  asignacion = p[1]       # AST_expresion
+  asignacion = p[1]       # AST_modificador_asignacion
   p[0] = asignacion
 
 def p_modificador_dentro_de_clase_funcion(p): # AST_expresion_funcion
@@ -2947,12 +3002,19 @@ class AST_declaracion_variable(AST_declaracion):
     super().__init__()
     self.nombre = nombre          # AST_identificador
     self.asignacion = asignacion  # AST_expresion
-    self.otros = []               # [AST_identificador]
-  def identificador_adicional(identificador):
-    self.otros.append(identificador)
+    self.otros = []               # [AST_declaracion_variable]
+  def identificador_adicional(self, declaracion):
+    self.otros.append(declaracion)
+  def asignar(self, expresion):
+    self.asignacion = expresion
   def __str__(self):
     valor = "" if (self.asignacion is None) else " = " + show(self.asignacion)
-    return f"DeclaraciónVariable : {show(self.nombre)} {valor}"
+    mas = ""
+    for o in self.otros:
+      mas += f" {show(o.nombre)}"
+      if not(o.asignacion is None):
+        mas += f" = {show(o.asignacion)}"
+    return f"DeclaraciónVariable : {show(self.nombre)}{valor}{mas}"
   def restore(self):
     return super().restore(f"{restore(self.nombre)}{restore(self.asignacion)}{restore(self.otros)}")
 
@@ -3019,9 +3081,12 @@ class AST_combinador(AST_declaracion):
     self.expresion = expresion  # [AST_nodo] [[ OJO: no es una expresión porque podría ser algo como "let i=0; i++;" ]]
     self.cuerpo = []            # [AST_nodo]
   def agregar_cuerpo(self, cuerpo):
-    cuerpo.apertura(self.cierra)
-    self.cierra = []
-    self.cuerpo = cuerpo        # AST_cuerpo
+    if isinstance(cuerpo, AST_cuerpo):
+      cuerpo.apertura(self.cierra)
+      self.cierra = []
+      self.cuerpo = cuerpo        # AST_cuerpo
+    else:
+      self.clausura(cuerpo)
   def __str__(self):
     return f"{self.clase} : {show(self.expresion)} {show(self.cuerpo)}"
   def restore(self):
@@ -3113,57 +3178,50 @@ class AST_argumentos(AST_modificador):
   def __init__(self):
     super().__init__()
     self.lista = []  # [AST_expresion]
-    self.tmp = None
+    self.tmp = []
   def agregar_argumento(self, arg):
-    if not (self.tmp is None):
+    if len(self.tmp) > 0:
       arg.clausura(self.tmp)
-      self.tmp = None
+      self.tmp = []
     self.lista.insert(0, arg)
-  def apertura_temporal(self, s):
+  def apertura(self, s):
     if len(self.lista) > 0:
       self.lista[0].apertura(s)
-    elif self.tmp is None:
-      self.tmp = s
     else:
       self.tmp = concatenar(s, self.tmp)
-  def apertura(self, s):
-    if not (self.tmp is None):
-      s = concatenar(s, self.tmp)
-    super().apertura(s)
   def cantidad(self):
     return len(self.lista)
   def __str__(self):
     return f"{show(self.lista)}"
   def restore(self):
-    return super().restore(f"{restore(self.lista)}")
+    return super().restore(f"{restore(self.tmp)}{restore(self.lista)}")
 
 class AST_elementos(AST_modificador):
   def __init__(self):
     super().__init__()
     self.lista = []  # [AST_expresion]
-    self.tmp = None
+    self.tmp = []
   def agregar_elemento(self, arg):
-    if not (self.tmp is None):
-      arg.apertura(self.tmp)
-      self.tmp = None
+    if len(self.tmp) > 0:
+      arg.clausura(self.tmp)
+      self.tmp = []
     self.lista.insert(0, arg)
-  def apertura_temporal(self, s):
+  def apertura(self, s):
     if len(self.lista) > 0:
       self.lista[0].apertura(s)
-    elif self.tmp is None:
-      self.tmp = s
     else:
       self.tmp = concatenar(s, self.tmp)
-  def apertura(self, s):
-    if not (self.tmp is None):
-      s = concatenar(s, self.tmp)
-    super().apertura(s)
   def cantidad(self):
     return len(self.lista)
   def __str__(self):
     return f"{show(self.lista)}"
   def restore(self):
-    return super().restore(f"{restore(self.lista)}")
+    return super().restore(f"{restore(self.tmp)}{restore(self.lista)}")
+
+class AST_modificador_asignacion(AST_modificador):
+  def __init__(self, expresion):
+    super().__init__()
+    self.expresion = expresion
 
 class AST_asignable(AST_declaracion):
   def __init__(self):
@@ -3315,7 +3373,16 @@ class AST_modificador_declaracion(AST_modificador):
 class AST_modificador_variable_adicional(AST_modificador):
   def __init__(self, identificador):
     super().__init__()
-    self.identificador = identificador      # AST_identificador
+    self.declaracion = AST_declaracion_variable(identificador)    # AST_declaracion_variable
+  def modificador_adicional(self, otro):
+    if isinstance(otro, AST_modificador_asignacion):
+      expresion = otro.expresion
+      expresion.imitarEspacios(otro)
+      self.asignar(expresion)
+    else:
+      super().modificador_adicional(otro)
+  def asignar(self, expresion):
+    self.declaracion.asignar(expresion)
 
 class AST_modificador_declaracion_unario(AST_modificador_declaracion):
   def __init__(self, nombre):
@@ -3530,7 +3597,9 @@ def aplicarModificador(nodo, mod):
     resultado = AST_declaracion_funcion(nodo, mod)
   elif isinstance(mod, AST_modificador_variable_adicional):
     # DECLARACIÓN CON MÁS VARIABLES: {nodo} , {mod}
-    resultado.identificador_adicional(mod)
+    declaracion = mod.declaracion
+    declaracion.imitarEspacios(mod)
+    resultado.identificador_adicional(declaracion)
   elif isinstance(mod, AST_modificador_comotipo):
     # COMO TIPO: {nodo} as {mod}
     resultado.agregar_modificador_post(mod)
@@ -3564,13 +3633,15 @@ def aplicarModificador(nodo, mod):
     # ITERACIÓN: {nodo} in {mod}
     mod.expresion.imitarEspacios(mod)
     resultado = AST_iteracion(nodo, mod.expresion)
-  elif isinstance(mod, AST_expresion):
-    if isinstance(nodo, AST_declaracion_variable):
+  elif isinstance(mod, AST_modificador_asignacion):
+    expresion = mod.expresion
+    expresion.imitarEspacios(mod)
+    if isinstance(nodo, AST_declaracion_variable) or isinstance(nodo, AST_modificador_variable_adicional):
       # ASIGNACIÓN VARIABLE: Var {nodo} = {mod}
-      resultado.asignacion = mod
+      resultado.asignar(expresion)
     else:
       # ASIGNACIÓN GENÉRICA: {nodo} = {mod}
-      resultado = AST_asignacion(nodo, mod)
+      resultado = AST_asignacion(nodo, expresion)
   else: # [AST_skippeable]
     if isinstance(mod, AST_nodo):
       # ERROR

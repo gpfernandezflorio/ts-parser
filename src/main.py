@@ -40,7 +40,7 @@ archivosTest = [
   "../../blockly/core/events/events_var_delete.ts",
   "../../blockly/core/events/events_var_rename.ts",
   "../../blockly/core/events/events_viewport.ts",
-  # "../../blockly/core/events/utils.ts",
+  "../../blockly/core/events/utils.ts",
   "../../blockly/core/events/workspace_events.ts"
 ]
 

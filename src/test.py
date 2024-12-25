@@ -46,6 +46,12 @@ def index(objeto, indice):
 def objeto(dic):
   return AST_expresion_objeto([AST_campo(k,dic[k]) for k in dic])
 
+def variables(v):
+  resultado = v[0]
+  for otra in v[1:]:
+    resultado.identificador_adicional(otra)
+  return resultado
+
 def combinador(clase, expresion, cuerpo):
   combinador = AST_combinador(clase, expresion)
   combinador.agregar_cuerpo(AST_cuerpo(cuerpo))
@@ -279,7 +285,7 @@ casos_de_test = [
   Test("Acceso a objetos",
     "a.b;a[1];b[a]",[
       id('a',1,1,0),
-      t('ACCESO','.',1,2,1),
+      t('ACCESO1','.',1,2,1),
       id('b',1,3,2),
       t('PUNTO_Y_COMA',';',1,4,3),
       id('a',1,5,4),
@@ -298,14 +304,14 @@ casos_de_test = [
   Test("Modificación de objetos",
     "a.b=c[1].d;a[c]=d().b",[
       id('a',1,1,0),
-      t('ACCESO','.',1,2,1),
+      t('ACCESO1','.',1,2,1),
       id('b',1,3,2),
       t('ASIGNACION1','=',1,4,3),
       id('c',1,5,4),
       t('ABRE_CORCHETE','[',1,6,5),
       n('1',1,7,6),
       t('CIERRA_CORCHETE',']',1,8,7),
-      t('ACCESO','.',1,9,8),
+      t('ACCESO1','.',1,9,8),
       id('d',1,10,9),
       t('PUNTO_Y_COMA',';',1,11,10),
       id('a',1,12,11),
@@ -316,7 +322,7 @@ casos_de_test = [
       id('d',1,17,16),
       t('ABRE_PAREN','(',1,18,17),
       t('CIERRA_PAREN',')',1,19,18),
-      t('ACCESO','.',1,20,19),
+      t('ACCESO1','.',1,20,19),
       id('b',1,21,20)
   ], [asignacion(acceso('a','b'),acceso(index('c','1'),'d')),
       asignacion(index('a','c'),acceso(invocacion('d'),'b'))
@@ -324,22 +330,22 @@ casos_de_test = [
   Test("Combinación objetos y funciones (1)",
     "a.b.c()().c(c[3].b[a()[b]()][2])",[
     id('a',1,1,0),
-    t('ACCESO','.',1,2,1),
+    t('ACCESO1','.',1,2,1),
     id('b',1,3,2),
-    t('ACCESO','.',1,4,3),
+    t('ACCESO1','.',1,4,3),
     id('c',1,5,4),
     t('ABRE_PAREN','(',1,6,5),
     t('CIERRA_PAREN',')',1,7,6),
     t('ABRE_PAREN','(',1,8,7),
     t('CIERRA_PAREN',')',1,9,8),
-    t('ACCESO','.',1,10,9),
+    t('ACCESO1','.',1,10,9),
     id('c',1,11,10),
     t('ABRE_PAREN','(',1,12,11),
     id('c',1,13,12),
     t('ABRE_CORCHETE','[',1,14,13),
     n('3',1,15,14),
     t('CIERRA_CORCHETE',']',1,16,15),
-    t('ACCESO','.',1,17,16),
+    t('ACCESO1','.',1,17,16),
     id('b',1,18,17),
     t('ABRE_CORCHETE','[',1,19,18),
     id('a',1,20,19),
@@ -394,7 +400,7 @@ casos_de_test = [
     t('ABRE_CORCHETE','[',3,5,36),
     n('2',3,6,37),
     t('CIERRA_CORCHETE',']',3,7,38),
-    t('ACCESO','.',3,8,39),
+    t('ACCESO1','.',3,8,39),
     id('x',3,9,40),
     t('ABRE_CORCHETE','[',3,10,41),
     n('3',3,11,42),
@@ -518,6 +524,21 @@ casos_de_test = [
     combinador('if',[espacios(' '),operador('t','<','10')],[espacios(' '),operador('i','--',None)]),
     combinador('while',['true'],[]),
     combinador('for',[variable('i','0'),operador('i','<=','10'),operador('i','++',None)],[asignacion('i','2')])
+  ]),
+  Test("Varias declaraciones",
+  "let x=1,y=z;",[
+    t('DECL_VAR','let',1,1,0),
+    t('SKIP',' ',1,4,3),
+    id('x',1,5,4),
+    t('ASIGNACION1','=',1,6,5),
+    n('1',1,7,6),
+    t('COMA',',',1,8,7),
+    id('y',1,9,8),
+    t('ASIGNACION1','=',1,10,9),
+    id('z',1,11,10),
+    t('PUNTO_Y_COMA',';',1,12,11)
+  ],[
+    variables([variable('x','1'),variable('y','z')])
   ])
 ]
 
@@ -554,7 +575,7 @@ def evaluar(test):
   while i < len(esperado) and i < len(elementos_obtenidos):
     if str(elementos_obtenidos[i]) != str(esperado[i]):
       print("Error en test: "+test.desc)
-      print(f"Como {i}° elemento se esperaba:\n{clean_str(esperado[i])}\n pero se obtuvo:\n{clean_str(elementos_obtenidos[i])}")
+      print(f"Como {i+1}° elemento se esperaba:\n{clean_str(esperado[i])}\n pero se obtuvo:\n{clean_str(elementos_obtenidos[i])}")
       return True
     i += 1
   if len(elementos_obtenidos) > i:
