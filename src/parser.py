@@ -159,6 +159,7 @@ precedence = (
   ('left', 'IDENTIFICADOR'),
   ('left', 'PREGUNTA'),
   ('left', 'PIPE'),
+  ('left', 'COMA'),
   ('left', 'AS'),
 )
 
@@ -2451,8 +2452,8 @@ def p_declaracion_export(p): # AST_export
   '''
   declaracion_no_objeto : EXPORT s declaracion_o_identificador
   '''
-  r = AST_sintaxis(p[1])            # AST_sintaxis
-  s = concatenar(r,p[2])            # [AST_skippeable]
+  s = AST_sintaxis(p[1])            # AST_sintaxis
+  s = concatenar(s,p[2])            # [AST_skippeable]
   exportado = p[3]                  # AST_declaracion_variable | AST_expresion_funcion | AST_declaracion_funcion | AST_invocacion | AST_declaracion_clase | AST_identificador | AST_identificadores
   export = AST_export(p[3])
   export.apertura(s)
@@ -2676,12 +2677,8 @@ def p_opt_modificador_clase_con_skip(p): # AST_modificador_declaracion | [AST_sk
   opt_modificador_clase : sf modificador_clase
   '''
   s = p[1]
-  modificadores = p[2]
-  if len(modificadores) > 0:
-    modificadores[0].apertura(s)
-  else:
-    modificadores = s
-  p[0] = modificadores
+  modificador = p[2]
+  p[0] = modificador_con_skip(modificador, s)
 
 def p_opt_modificador_clase_sin_skip(p): # AST_modificador_declaracion | [AST_skippeable]
   '''
@@ -2701,31 +2698,62 @@ def p_modificador_clase_no_vacio(p): # AST_modificador_declaracion
   '''
   p[0] = p[1]
 
-def p_modificador_clase_implements(p): # AST_modificador_declaracion
+def p_modificador_clase_implements(p): # AST_modificador_declaracion_implementacion
   '''
-  modificador_clase_no_vacio : IMPLEMENTS s id_clase opt_modificador_clase
+  modificador_clase_no_vacio : IMPLEMENTS s id_clases opt_modificador_clase
   '''
   implements = AST_sintaxis(p[1])   # AST_sintaxis
   s = concatenar(implements, p[2])  # [AST_skippeable]
-  nombre = p[3]                     # AST_tipo
+  nombre = p[3]                     # AST_tipo_varios
   rec = p[4]                        # AST_modificador_declaracion
-  nombre.apertura(s)
   implementacion = AST_modificador_declaracion_implementacion(nombre)
+  implementacion.apertura(s)
   implementacion.modificador_adicional(rec)
   p[0] = implementacion
 
-def p_modificador_clase_extends(p): # AST_modificador_declaracion
+def p_modificador_clase_extends(p): # AST_modificador_declaracion_extension
   '''
   modificador_clase_no_vacio : EXTENDS s id_clase opt_modificador_clase
   '''
-  extends = AST_sintaxis(p[1])      # AST_sintaxis
-  s = concatenar(extends, p[2])     # [AST_skippeable]
+  s = AST_sintaxis(p[1])            # AST_sintaxis
+  s = concatenar(s, p[2])           # [AST_skippeable]
   nombre = p[3]                     # AST_tipo
   rec = p[4]                        # AST_modificador_declaracion
-  nombre.apertura(s)
   extension = AST_modificador_declaracion_extension(nombre)
+  extension.apertura(s)
   extension.modificador_adicional(rec)
   p[0] = extension
+
+def p_id_clases(p): # AST_tipo_varios
+  '''
+  id_clases : id_clase s opt_mas_ids_clase
+  '''
+  clase = p[1]    # AST_tipo
+  s = p[2]        # [AST_skippeable]
+  rec = p[3]      # AST_tipo_varios | [AST_skippeable]
+  clase.clausura(s)
+  if isinstance(rec, AST_tipo_varios):
+    rec.agregar_tipo(clase)
+  else:
+    clase.clausura(rec)
+    rec = AST_tipo_varios(clase)
+  p[0] = clase
+
+def p_opt_mas_ids_clase_ninguna(p): # [AST_skippeable]
+  '''
+  opt_mas_ids_clase : vacio
+  '''
+  p[0] = p[1]
+
+def p_opt_mas_ids_clase_otra(p): # AST_tipo_varios
+  '''
+  opt_mas_ids_clase : COMA s id_clases
+  '''
+  s = AST_sintaxis(p[1])    # AST_sintaxis
+  s = concatenar(s, p[2])   # [AST_skippeable]
+  clase = p[3]              # AST_tipo_varios
+  clase.apertura(s)
+  p[0] = clase
 
 def p_id_clase(p): # AST_tipo_base | AST_tipo_compuesto
   '''
@@ -2843,12 +2871,18 @@ class AST_nodo(object):
   def imitarEspaciosC(self, otro):
     self.cierra = self.cierra + otro.cierra
   def agregar_modificador_pre(self, modificador):
+    modificador.clausura(self.abre)
+    self.abre = []
     self.pre_mods.insert(0, modificador)
   def agregar_modificador_post(self, modificador):
     if isinstance(modificador, AST_modificador):
+      modificador.apertura(self.cierra)
+      self.cierra = []
       self.post_mods.append(modificador)
       for m in modificador.adicional:
         self.agregar_modificador_post(m)
+    else:
+      self.clausura(modificador)
   def apertura(self, c):
     if c is None:
       return
@@ -2912,6 +2946,16 @@ class AST_modificador(AST_nodo):
       self.adicional[-1].clausura(otro)
     else:
       self.clausura(otro)
+  # def clausura(self,c):
+  #   if len(self.adicional) > 0:
+  #     self.adicional[-1].clausura(c)
+  #   else:
+  #     super().clausura(c)
+  # def apertura(self,c):
+  #   if len(self.adicional) > 0:
+  #     self.adicional[0].apertura(c)
+  #   else:
+  #     super().apertura(c)
 
 class AST_declaracion_funcion(AST_declaracion):
   def __init__(self, nombre, funcion_incompleta):
@@ -3394,7 +3438,7 @@ class AST_modificador_declaracion_unario(AST_modificador_declaracion):
 class AST_modificador_declaracion_implementacion(AST_modificador_declaracion):
   def __init__(self, nombre):
     super().__init__()
-    self.nombre = nombre          # AST_tipo
+    self.nombre = nombre          # AST_tipo | [AST_tipo]
   def restore(self):
     return super().restore(f"{restore(self.nombre)}")
 
@@ -3506,6 +3550,24 @@ class AST_tipo_compuesto(AST_tipo):
     return f"Tipo : {self.base}<{', '.join(list(self.sub_tipos.sub_tipos.map(show)))}>"
   def restore(self):
     return super().restore(f"{restore(self.base)}{restore(self.sub_tipos)}")
+
+class AST_tipo_varios(AST_tipo):
+  def __init__(self, sub_tipos):
+    super().__init__()
+    self.sub_tipos = sub_tipos          # [AST_tipo]
+  def agregar_tipo(self, o):
+    self.sub_tipos.insert(0, o)
+  def cantidad(self):
+    return len(self.sub_tipos)
+  def apertura(self, c):
+    if self.cantidad() > 0:
+      self.sub_tipos[0].apertura(c)
+    else:
+      self.clausura(c)
+  def __str__(self):
+    return f"Tipo : {' , '.join(list(self.sub_tipos.map(show)))}"
+  def restore(self):
+    return super().restore(f"{restore(self.sub_tipos)}")
 
 class AST_campos_tipo(AST_declaracion):
   def __init__(self):
@@ -3703,7 +3765,7 @@ def mostrarDiff(a, b):
     print(''.join(lineas))
   else:
     pre = 1
-    post = 10
+    post = 1
     print(f"[{i+1}]")
     print_others(i-pre, i, lineas_a)
     print(f"> {V(lineas_a[i])}")
