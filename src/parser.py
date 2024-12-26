@@ -51,6 +51,7 @@ tokens = (
   'FLECHA',
   'PIPE',
   'CASE',
+  'TYPEOF',
   'SKIP'
 )
 
@@ -65,7 +66,8 @@ reserved_map = {
   'implements':'IMPLEMENTS',
   'extends':'EXTENDS',
   'new':'NEW',
-  'case':'CASE'
+  'case':'CASE',
+  'typeof':'TYPEOF'
 }
 
 for k in ['let','const','var']:
@@ -774,13 +776,13 @@ def p_tipo_objeto(p): # AST_tipo_objeto
   tipo.modificador_adicional(opt_adicional)
   p[0] = tipo
 
-def p_tipo_parentesis(p): # AST_tipo (puede ser AST_tipo_funcion o un AST_tipo cualquiera entre paréntesis)
+def p_tipo_parentesis(p): # AST_tipo (puede ser AST_tipo_flecha o un AST_tipo cualquiera entre paréntesis)
   '''
   tipo_sin_id : ABRE_PAREN s tipo_o_parametros opt_modificador_tipo
   '''
   s = AST_sintaxis(p[1])    # AST_sintaxis
   s = concatenar(s, p[2])   # AST_skippeable
-  rec = p[3]                # AST_tipo (puede ser AST_tipo_funcion o un AST_tipo cualquiera entre paréntesis)
+  rec = p[3]                # AST_tipo (puede ser AST_tipo_flecha o un AST_tipo cualquiera entre paréntesis)
   opt_adicional = p[4]      # AST_tipo_lista | AST_tipo_suma | AST_modificador_objeto_acceso | [AST_skippeable]
   rec.apertura(s)
   rec.modificador_adicional(opt_adicional)
@@ -796,6 +798,17 @@ def p_tipo_new(p): # AST_tipo
   rec.apertura(s)
   p[0] = rec
 
+def p_tipo_derivado(p): # AST_tipo_derivado
+  '''
+  tipo_sin_id : TYPEOF s IDENTIFICADOR
+  '''
+  s = AST_sintaxis(p[1])                                            # AST_sintaxis
+  s = concatenar(s, p[2])                                           # AST_skippeable
+  expresion = AST_expresion_identificador(AST_identificador(p[3]))  # AST_expresion
+  tipo = AST_tipo_derivado(expresion)
+  tipo.apertura(s)
+  p[0] = tipo
+
 def p_tipo_o_parametros_tipo(p): # AST_tipo (entre paréntesis)
   '''
   tipo_o_parametros : tipo_sin_id CIERRA_PAREN
@@ -805,7 +818,7 @@ def p_tipo_o_parametros_tipo(p): # AST_tipo (entre paréntesis)
   tipo.clausura(s)
   p[0] = tipo
 
-def p_tipo_o_parametros_flecha(p): # AST_tipo_funcion
+def p_tipo_o_parametros_flecha(p): # AST_tipo_flecha
   '''
   tipo_o_parametros : identificadores CIERRA_PAREN s FLECHA s tipo
   '''
@@ -816,7 +829,7 @@ def p_tipo_o_parametros_flecha(p): # AST_tipo_funcion
   parametros.clausura(cierra)
   s = AST_sintaxis(p[4])            # AST_sintaxis
   s = concatenar(s, p[5])           # [AST_skippeable]
-  tipo_salida = p[6]                # AST_identificador | AST_tipo_objeto | AST_tipo_funcion
+  tipo_salida = p[6]                # AST_identificador | AST_tipo_objeto | AST_tipo_flecha
   parametros.clausura(s)
   tipo_flecha = AST_tipo_flecha(parametros, tipo_salida)
   p[0] = tipo_flecha
@@ -1088,7 +1101,7 @@ def p_modificador_asignable_cierre(p): # [AST_skippeable]
 
 def p_modificador_objeto_acceso(p): # AST_modificador_objeto_acceso
   '''
-  modificador_objeto_expresion_no_vacio : operador_acceso s nombre opt_modificador_expresion_o_invocacion
+  modificador_objeto_expresion_no_vacio : operador_acceso s nombre opt_modificador_asignable
   '''
   punto = AST_sintaxis(p[1])
   s = concatenar(punto, p[2])       # [AST_skippeable]
@@ -1217,11 +1230,22 @@ def p_expresion_asignada_new(p): # AST_expresion
   '''
   expresion_asignada_sin_pre : NEW s expresion opt_modificador_expresion_asignada
   '''
-  new = AST_sintaxis(p[1])                  # AST_sintaxis
-  s1 = concatenar(new, p[2])                # [AST_skippeable]
+  s = AST_sintaxis(p[1])                    # AST_sintaxis
+  s = concatenar(s, p[2])                   # [AST_skippeable]
   clase = p[3]                              # AST_expresion
   opt_adicional = p[4]                      # AST_cuerpo | AST_argumentos | AST_expresion | AST_modificador_objeto | [AST_skippeable]
-  clase.apertura(s1)
+  clase.apertura(s)
+  p[0] = aplicarModificador(clase, opt_adicional)
+
+def p_expresion_asignada_typeof(p): # AST_expresion
+  '''
+  expresion_asignada_sin_pre : TYPEOF s expresion opt_modificador_expresion_asignada
+  '''
+  s = AST_sintaxis(p[1])                    # AST_sintaxis
+  s = concatenar(s, p[2])                   # [AST_skippeable]
+  clase = p[3]                              # AST_expresion
+  opt_adicional = p[4]                      # AST_cuerpo | AST_argumentos | AST_expresion | AST_modificador_objeto | [AST_skippeable]
+  clase.apertura(s)
   p[0] = aplicarModificador(clase, opt_adicional)
 
 def p_expresion_asignada_objeto(p): # AST_expresion_objeto
@@ -1249,16 +1273,26 @@ def p_expresion_asignada_parentesis(p): # AST_expresion
 
 def p_expresion_asignada_entre_parentesis(p): # AST_expresion
   '''
-  expresion_asignada_entre_parentesis : ABRE_PAREN s expresion CIERRA_PAREN opt_modificador_expresion_asignada
+  expresion_asignada_entre_parentesis : ABRE_PAREN s opt_expresion CIERRA_PAREN opt_modificador_expresion_asignada
   '''
-  s = AST_sintaxis(p[1])
-  s = concatenar(s, p[2])
-  expresion = p[3]
+  abre = AST_sintaxis(p[1])         # AST_sintaxis
+  abre = concatenar(abre, p[2])     # [AST_skippeable]
+  expresion = p[3]                  # AST_expresion | [AST_skippeable]
+  cierra = AST_sintaxis(p[4])       # AST_sintaxis
+  modificador_expresion = p[5]      # AST_cuerpo | AST_argumentos | AST_expresion | AST_modificador_objeto | [AST_skippeable]
   if isinstance(expresion, AST_operador):
     expresion.conParentesis()
-  expresion.clausura(p[4])
-  modificador_expresion = p[5]      # AST_cuerpo | AST_argumentos | AST_expresion | AST_modificador_objeto | [AST_skippeable]
-  expresion.apertura(s)
+  if isinstance(expresion, AST_nodo):
+    expresion.apertura(abre)
+    expresion.clausura(cierra)
+  else: # Debería ser una lista vacía
+    if isinstance(modificador_expresion, AST_nodo):
+      modificador_expresion.apertura(cierra)
+      modificador_expresion.apertura(abre)
+    else:
+      expresion = AST_nodo()
+      expresion.apertura(abre)
+      expresion.clausura(cierra)
   p[0] = aplicarModificador(expresion, modificador_expresion)
 
 def p_opt_modificador_expresion_asignada_con_skip(p): # AST_cuerpo | AST_argumentos | AST_expresion | AST_modificador_objeto | [AST_skippeable]  {skip, comentario}
@@ -1439,13 +1473,6 @@ def p_expresion_con_pre(p): # AST_expresion
   expresion.apertura(s)
   p[0] = expresion
 
-def p_expresion_sin_identificador(p): # AST_expresion (_invocacion, _acceso, _index, ...)
-  '''
-  expresion_sin_pre : expresion_sin_pre_ni_id
-  '''
-  expresion = p[1]
-  p[0] = expresion
-
 def p_expresion_identificador(p): # AST_expresion (_invocacion, _acceso, _index, ...)
   '''
   expresion_sin_pre : IDENTIFICADOR opt_decorador_identificador opt_modificador_asignable
@@ -1457,6 +1484,31 @@ def p_expresion_identificador(p): # AST_expresion (_invocacion, _acceso, _index,
   expresion_base = AST_expresion_identificador(identificador)
   expresion = aplicarModificador(expresion_base, modificador_expresion)
   p[0] = expresion
+
+def p_expresion_sin_identificador(p): # AST_expresion (_invocacion, _acceso, _index, ...)
+  '''
+  expresion_sin_pre : expresion_sin_pre_ni_id
+  '''
+  expresion = p[1]
+  p[0] = expresion
+
+def p_expresion_function(p): # AST_expresion_funcion | AST_invocacion
+  '''
+  expresion_sin_pre_ni_id : DECL_FUNC s definicion_funcion
+  '''
+  declarador = AST_sintaxis(p[1])
+  s = concatenar(declarador, p[2])      # [AST_skippeable]
+  rec = p[3]                            # AST_funcion_incompleta | AST_invocacion
+  rec.apertura(s)
+  if type(rec) is AST_funcion_incompleta:
+    rec = AST_expresion_funcion(rec)
+  p[0] = rec
+
+def p_expresion_suelta(p): # ...
+  '''
+  expresion_sin_pre_ni_id : expresion_suelta
+  '''
+  p[0] = p[1]
 
 def p_expresion_literal(p): # AST_expresion_literal | AST_expresion (_invocacion, _acceso, _index, ...)
   '''
@@ -1475,39 +1527,38 @@ def p_expresion_format_string(p): # AST_format_string | AST_expresion (_invocaci
   modificador_expresion = p[2]      # AST_argumentos | AST_expresion | AST_modificador_objeto | [AST_skippeable]
   p[0] = aplicarModificador(format_string, modificador_expresion)
 
-def p_expresion_function(p): # AST_expresion_funcion | AST_invocacion
-  '''
-  expresion_sin_pre_ni_id : DECL_FUNC s definicion_funcion
-  '''
-  declarador = AST_sintaxis(p[1])
-  s = concatenar(declarador, p[2])      # [AST_skippeable]
-  rec = p[3]                            # AST_funcion_incompleta | AST_invocacion
-  rec.apertura(s)
-  if type(rec) is AST_funcion_incompleta:
-    rec = AST_expresion_funcion(rec)
-  p[0] = rec
-
 def p_expresion_new(p): # AST_invocacion
   '''
-  expresion_sin_pre_ni_id : NEW s expresion opt_modificador_expresion
+  expresion_suelta : NEW s expresion opt_modificador_expresion
   '''
-  new = AST_sintaxis(p[1])                  # AST_sintaxis
-  s1 = concatenar(new, p[2])                # [AST_skippeable]
+  s = AST_sintaxis(p[1])                    # AST_sintaxis
+  s = concatenar(s, p[2])                   # [AST_skippeable]
   clase = p[3]                              # AST_expresion
   opt_adicional = p[4]                      # AST_argumentos | AST_expresion | AST_modificador_objeto | [AST_skippeable]
-  clase.apertura(s1)
+  clase.apertura(s)
+  p[0] = aplicarModificador(clase, opt_adicional)
+
+def p_expresion_typeof(p): # AST_expresion
+  '''
+  expresion_suelta : TYPEOF s expresion opt_modificador_expresion
+  '''
+  s = AST_sintaxis(p[1])                    # AST_sintaxis
+  s = concatenar(s, p[2])                   # [AST_skippeable]
+  clase = p[3]                              # AST_expresion
+  opt_adicional = p[4]                      # AST_argumentos | AST_expresion | AST_modificador_objeto | [AST_skippeable]
+  clase.apertura(s)
   p[0] = aplicarModificador(clase, opt_adicional)
 
 def p_expresion_lista(p): # AST_expresion_lista
   '''
-  expresion_sin_pre_ni_id : lista
+  expresion_suelta : lista
   '''
   objeto = p[1]
   p[0] = objeto
 
 def p_expresion_parentesis(p): # AST_expresion
   '''
-  expresion_sin_pre_ni_id : expresion_entre_parentesis
+  expresion_suelta : expresion_entre_parentesis
   '''
   expresion = p[1] # AST_expresion
   p[0] = p[1]
@@ -2151,11 +2202,11 @@ def p_clave_campo_variable(p): # AST_identificador
   identificador.clausura(cierra)
   p[0] = identificador
 
-# DECLARACIÓN : PARENTESIS
+# DECLARACIÓN : OTRAS EXPRESIONES SUELTAS
  #################################################################################################
-def p_declaracion_parentesis(p): # AST_expresion
+def p_declaracion_expresion_suelta(p): # AST_expresion
   '''
-  declaracion_no_objeto : expresion_entre_parentesis
+  declaracion_no_objeto : expresion_suelta
   '''
   expresion = p[1] # AST_expresion
   p[0] = p[1]
@@ -2792,14 +2843,16 @@ def p_modificador_id_clase_no_vacio(p): # AST_tipo_tupla
 
 def p_modificador_id_clase_tupla(p): # AST_tipo_tupla
   '''
-  modificador_id_clase_no_vacio : MENOR s tipos MAYOR
+  modificador_id_clase_no_vacio : MENOR s tipos MAYOR opt_modificador_tipo
   '''
   abre = AST_sintaxis(p[1])       # AST_sintaxis
   abre = concatenar(abre, p[2])   # [AST_skippeable]
   tipo = p[3]                     # AST_tipo_tupla
   cierra = AST_sintaxis(p[4])     # AST_sintaxis
+  opt_adicional = p[5]            # AST_tipo_lista | AST_tipo_suma | AST_tipo_tupla | AST_modificador_objeto_acceso | [AST_skippeable]
   tipo.apertura(abre)
   tipo.clausura(cierra)
+  tipo = aplicarModificador(tipo, opt_adicional)
   p[0] = tipo
 
 def p_tipos_fin(p): # AST_tipo_tupla
@@ -3568,6 +3621,15 @@ class AST_tipo_varios(AST_tipo):
     return f"Tipo : {' , '.join(list(self.sub_tipos.map(show)))}"
   def restore(self):
     return super().restore(f"{restore(self.sub_tipos)}")
+
+class AST_tipo_derivado(AST_tipo):
+  def __init__(self, expresion):
+    super().__init__()
+    self.expresion = expresion        # AST_expresion
+  def __str__(self):
+    return f"El tipo de {show(self.expresion)}"
+  def restore(self):
+    return super().restore(f"{restore(self.expresion)}")
 
 class AST_campos_tipo(AST_declaracion):
   def __init__(self):

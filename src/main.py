@@ -44,9 +44,9 @@ archivosTest = [
   "../../blockly/core/events/workspace_events.ts",
   "../../blockly/core/icons/comment_icon.ts",
   "../../blockly/core/icons/exceptions.ts",
-  # "../../blockly/core/icons/icon.ts",
+  "../../blockly/core/icons/icon.ts",
   "../../blockly/core/icons/icon_types.ts",
-  # "../../blockly/core/icons/mutator_icon.ts",
+  "../../blockly/core/icons/mutator_icon.ts",
   "../../blockly/core/icons/registry.ts",
   "../../blockly/core/icons/warning_icon.ts"
 ]
