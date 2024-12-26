@@ -11,6 +11,7 @@ tokens = (
   'EXPORT',
   'FROM',
   'AS',
+  'IS',
   'COMBINADOR1',
   'COMBINADOR2',
   'ELSE',
@@ -32,6 +33,7 @@ tokens = (
   'OPERADOR_INFIJO',
   'OPERADOR_BOOLEANO',
   'PREGUNTA',
+  'EXCLAMACION',
   'ITERADOR',
   'MAS',
   'MENOS',
@@ -61,6 +63,7 @@ reserved_map = {
   'export':'EXPORT',
   'from':'FROM',
   'as':'AS',
+  'is':'IS',
   'else':'ELSE',
   'default':'DEFAULT',
   'implements':'IMPLEMENTS',
@@ -101,19 +104,20 @@ def t_COMENTARIO_ML(t):
   t.lexer.lineno += t.value.count('\n')
   return t
 t_ASIGNACION1 = r'='
-t_ASIGNACION2 = r'\+=|\*=|-=|/='
+t_ASIGNACION2 = r'\+=|\*=|-=|/=|\|='
 t_ABRE_PAREN = r'\('
 t_CIERRA_PAREN = r'\)'
 t_ABRE_LLAVE = r'{'
 t_CIERRA_LLAVE = r'}'
 t_ABRE_CORCHETE = r'\['
 t_CIERRA_CORCHETE = r'\]'
-t_OPERADOR_PREFIJO = r'!|\.\.\.'
+t_OPERADOR_PREFIJO = r'\.\.\.'
 t_OPERADOR_INFIJO = r'\+\+|--'
 t_OPERADOR_BOOLEANO = r'===|!==|==|!=|>=|<=|&&|\|\||\?\?'
 t_FLECHA = r'=>'
 t_PIPE = r'\|'
 t_PREGUNTA = r'\?'
+t_EXCLAMACION = r'!'
 t_MAS = r'\+'
 t_MENOS = r'-'
 t_POR = r'\*'
@@ -153,7 +157,7 @@ precedence = (
   ('left', 'PUNTO_Y_COMA'),
   ('left', 'DOS_PUNTOS'),
   ('left', 'POR','DIV'),
-  ('left', 'OPERADOR_PREFIJO'),
+  ('left', 'OPERADOR_PREFIJO','EXCLAMACION'),
   ('left', 'MENOS','MAS'),
   ('left', 'ACCESO1', 'ACCESO2'),
   ('left', 'FLECHA'),
@@ -365,11 +369,11 @@ def p_declaracion_function_anon(p): # AST_funcion_incompleta | AST_invocacion
 
 def p_definicion_funcion(p): # AST_funcion_incompleta | AST_invocacion
   '''
-  definicion_funcion : parametros opt_decorador_identificador_tipo cuerpo opt_modificador_funcion
+  definicion_funcion : parametros opt_decorador_identificador_tipo opt_cuerpo opt_modificador_funcion
   '''
   parametros = p[1]                             # AST_parametros
   opt_tipo = p[2]                               # AST_decorador_tipo | [AST_skippeable]
-  cuerpo = p[3]                                 # AST_cuerpo
+  cuerpo = p[3]                                 # AST_cuerpo | [AST_skippeable]
   modificador = p[4]                            # AST_argumentos | [AST_skippeable]
   expresion = AST_funcion_incompleta(parametros, cuerpo)
   if isinstance(opt_tipo, AST_decorador_tipo):
@@ -496,6 +500,7 @@ def p_opt_prefijo_vacio(p): # [AST_skippeable]
 def p_opt_prefijo_prefijo(p): # [AST_skippeable]
   '''
   opt_prefijo : OPERADOR_PREFIJO
+              | EXCLAMACION
   '''
   p[0] = AST_sintaxis(p[1])
 
@@ -528,6 +533,7 @@ def p_decorador_declaracion_clase_no_vacio(p): # AST_decorador_opcional | AST_de
 def p_opt_decorador_declaracion_clase_opcional(p): # AST_decorador_opcional
   '''
   decorador_declaracion_clase_no_vacio : PREGUNTA s opt_decorador_identificador_tipo
+                                       | EXCLAMACION s opt_decorador_identificador_tipo
   '''
   s1 = AST_sintaxis(p[1])                   # AST_sintaxis
   s1 = concatenar(s1, p[2])                 # [AST_skippeable]
@@ -674,13 +680,36 @@ def p_decorador_identificador_tipo_no_vacio(p): # AST_decorador_tipo
 
 def p_decorador_identificador_tipo(p): # AST_tipo
   '''
-  decorador_identificador_tipo_no_vacio : DOS_PUNTOS s tipo
+  decorador_identificador_tipo_no_vacio : DOS_PUNTOS s tipo s opt_is
   '''
-  r = AST_sintaxis(p[1])    # AST_sintaxis
-  s = concatenar(r, p[2])   # [AST_skippeable]
-  tipo = p[3]               # AST_tipo
-  tipo.apertura(s)
+  abre = AST_sintaxis(p[1])       # AST_sintaxis
+  abre = concatenar(abre, p[2])   # [AST_skippeable]
+  tipo = p[3]                     # AST_tipo
+  cierra = p[4]                   # [AST_skippeable]
+  opt_adicional = p[5]            # AST_decorador_tipo | [AST_skippeable]
+  if isinstance(opt_adicional, AST_decorador_tipo):
+    tipo.nuevo_alias(opt_adicional)
+  else:
+    cierra = concatenar(cierra, opt_adicional)
+  tipo.apertura(abre)
+  tipo.clausura(cierra)
   p[0] = tipo
+
+def p_opt_is_si(p): # AST_decorador_tipo
+  '''
+  opt_is : IS s tipo
+  '''
+  s = AST_sintaxis(p[1])        # AST_sintaxis
+  s = concatenar(s, p[2])       # [AST_skippeable]
+  tipo = p[3]                   # AST_tipo
+  tipo.apertura(s)
+  p[0] = AST_decorador_tipo(tipo)
+
+def p_opt_is_no(p): # AST_decorador_tipo
+  '''
+  opt_is : vacio
+  '''
+  p[0] = p[1]
 
 def p_tipo_identificador(p): # AST_tipo
   '''
@@ -1761,6 +1790,7 @@ def p_operador_posfijo(p): # string
   '''
   operador_posfijo : OPERADOR_INFIJO
                    | OPERADOR_PREFIJO
+                   | EXCLAMACION
   '''
   operador = p[1]
   p[0] = operador
@@ -2329,6 +2359,7 @@ def p_declaracion_prefijo(p): # AST_operador
 def p_operador_prefijo(p): # string
   '''
   operador_prefijo : OPERADOR_PREFIJO
+                   | EXCLAMACION
                    | MENOS
   '''
   operador = p[1]
@@ -2668,13 +2699,15 @@ def p_modificador_dentro_de_clase_asignacion(p): # AST_modificador_asignacion
 
 def p_modificador_dentro_de_clase_funcion(p): # AST_expresion_funcion
   '''
-  modificador_dentro_de_clase_no_vacio : definicion_funcion
+  modificador_dentro_de_clase_no_vacio : definicion_funcion opt_cierre
   '''
-  definicion = p[1]                                           # AST_expresion_funcion | AST_invocacion
+  definicion = p[1]     # AST_expresion_funcion | AST_invocacion
+  cierre = p[2]         # [AST_skippeable]
   # Si la estoy declarando, no debería haber una invocación
   if type(definicion) is AST_invocacion:
     print("ERROR p_modificador_dentro_de_clase_funcion")
     exit(0)
+  definicion.clausura(cierre)
   p[0] = definicion
 
 def p_opt_modificador_clase_con_skip(p): # AST_modificador_declaracion | [AST_skippeable]
@@ -2953,16 +2986,6 @@ class AST_modificador(AST_nodo):
       self.adicional[-1].clausura(otro)
     else:
       self.clausura(otro)
-  # def clausura(self,c):
-  #   if len(self.adicional) > 0:
-  #     self.adicional[-1].clausura(c)
-  #   else:
-  #     super().clausura(c)
-  # def apertura(self,c):
-  #   if len(self.adicional) > 0:
-  #     self.adicional[0].apertura(c)
-  #   else:
-  #     super().apertura(c)
 
 class AST_declaracion_funcion(AST_declaracion):
   def __init__(self, nombre, funcion_incompleta):
@@ -3334,7 +3357,11 @@ class AST_funcion_incompleta(AST_modificador):
   def __init__(self, parametros, cuerpo):
     super().__init__()
     self.parametros = parametros   # AST_parametros
-    self.cuerpo = cuerpo           # AST_cuerpo
+    if isinstance(cuerpo, AST_cuerpo):
+      self.cuerpo = cuerpo           # AST_cuerpo
+    else:
+      self.cuerpo = AST_cuerpo([])
+      self.clausura(cuerpo)
     self.decoradores = []          # [AST_decorador]
   def agregar_decorador(self, decorador):
     self.decoradores.append(decorador)
@@ -3478,6 +3505,11 @@ class AST_format_string(AST_expresion):
 class AST_tipo(AST_modificador):
   def __init__(self):
     super().__init__()
+    self.alias = []
+  def nuevo_alias(self, otro):
+    self.alias.append(otro)
+  def restore(self,contenido=''):
+    return super().restore(f"{contenido}{restore(self.alias)}")
 
 class AST_tipo_base(AST_tipo):
   def __init__(self, base):
