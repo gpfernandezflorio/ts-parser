@@ -5,7 +5,7 @@ from parser import tokenizar, parsear, mostrarAST, mostrarTokens, mostrarDiff, e
 
 archivosTest = [
   "any_aliases",
-  # "block",
+  "block",
   # "block_animations",
   "block_dragger",
   # "block_svg",

@@ -35,7 +35,7 @@ def funcion(nombre, parametros, cuerpo):
   return AST_declaracion_funcion(nombre, AST_funcion_incompleta(parametros, cuerpo))
 
 def abs(parametros=[], cuerpo=None):
-  return AST_expresion_funcion(AST_funcion_incompleta(parametros, cuerpo))
+  return AST_expresion_funcion(AST_funcion_incompleta(parametros, AST_cuerpo(cuerpo)))
 
 def acceso(objeto, campo):
   return AST_expresion_acceso(objeto, AST_modificador_objeto_acceso(identificador(campo)))
@@ -454,7 +454,7 @@ casos_de_test = [
     t('MAS','+',1,4,3),
     n('4',1,5,4),
     t('PUNTO_Y_COMA',';',1,6,5),
-    t('OPERADOR_PREFIJO','!',1,7,6),
+    t('EXCLAMACION','!',1,7,6),
     id('b',1,8,7),
     t('POR','*',1,9,8),
     t('ABRE_PAREN','(',1,10,9),
