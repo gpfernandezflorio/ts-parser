@@ -6,9 +6,9 @@ from parser import tokenizar, parsear, mostrarAST, mostrarTokens, mostrarDiff, e
 archivosTest = [
   "any_aliases",
   "block",
-  # "block_animations",
+  "block_animations",
   "block_dragger",
-  # "block_svg",
+  "block_svg",
   "blockly",
   "blockly_options",
   "blocks",

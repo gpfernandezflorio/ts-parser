@@ -54,6 +54,7 @@ tokens = (
   'PIPE',
   'CASE',
   'TYPEOF',
+  'VOID',
   'SKIP'
 )
 
@@ -70,7 +71,8 @@ reserved_map = {
   'extends':'EXTENDS',
   'new':'NEW',
   'case':'CASE',
-  'typeof':'TYPEOF'
+  'typeof':'TYPEOF',
+  'void':'VOID'
 }
 
 for k in ['let','const','var']:
@@ -603,9 +605,12 @@ def p_opt_decorador_parametro_default(p): # AST_decorador_defualt
 
 def p_opt_decorador_parametro_decorador_clase(p): # AST_decorador_opcional | AST_decorador_tipo
   '''
-  decorador_parametro_no_vacio : decorador_declaracion_clase_no_vacio
+  decorador_parametro_no_vacio : decorador_declaracion_clase_no_vacio opt_decorador_parametro
   '''
-  p[0] = p[1]
+  decorador = p[1]
+  opt_adicional = p[2]
+  decorador.modificador_adicional(opt_adicional)
+  p[0] = decorador
 
 def p_opt_decorador_identificador_con_skip(p): # AST_decorador_tipo | AST_decorador_subtipo | [AST_skippeable]
   '''
@@ -857,6 +862,15 @@ def p_tipo_derivado(p): # AST_tipo_derivado
   s = concatenar(s, p[2])                                           # AST_skippeable
   expresion = AST_expresion_identificador(AST_identificador(p[3]))  # AST_expresion
   tipo = AST_tipo_derivado(expresion)
+  tipo.apertura(s)
+  p[0] = tipo
+
+def p_tipo_void(p): # AST_tipo_base
+  '''
+  tipo_sin_id : VOID
+  '''
+  s = AST_sintaxis(p[1])                                            # AST_sintaxis
+  tipo = AST_tipo_void()
   tipo.apertura(s)
   p[0] = tipo
 
@@ -1583,6 +1597,16 @@ def p_cuerpo_abstraccion_expresion(p): # AST_cuerpo
   cuerpo_abstraccion : expresion_no_obj
   '''
   p[0] = AST_cuerpo([p[1]])
+
+def p_cuerpo_abstraccion_expresion_con_void(p): # AST_cuerpo
+  '''
+  cuerpo_abstraccion : VOID s expresion_no_obj
+  '''
+  s = AST_sintaxis(p[1])    # AST_sintaxis
+  s = concatenar(s, p[2])   # [AST_skippeable]
+  expresion = p[3]          # AST_expresion
+  expresion.apertura(s)
+  p[0] = AST_cuerpo([expresion])
 
 def p_cuerpo_abstraccion_cuerpo(p): # AST_cuerpo
   '''
@@ -3766,6 +3790,14 @@ class AST_tipo_derivado(AST_tipo):
     return f"El tipo de {show(self.expresion)}"
   def restore(self):
     return super().restore(f"{restore(self.expresion)}")
+
+class AST_tipo_void(AST_tipo):
+  def __init__(self):
+    super().__init__()
+  def __str__(self):
+    return f"VOID"
+  def restore(self):
+    return super().restore()
 
 class AST_campos_tipo(AST_declaracion):
   def __init__(self):
