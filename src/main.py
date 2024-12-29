@@ -12,7 +12,7 @@ archivosTest = [
   "blockly",
   "blockly_options",
   "blocks",
-  # "browser_events",
+  "browser_events",
   "bubble_dragger",
   "bubbles/bubble",
   "bubbles/mini_workspace_bubble",
@@ -303,10 +303,11 @@ def main():
   for nombreArchivo in archivos:
     if not existeArchivo_Acá(nombreArchivo):
       Boom("No existe el archivo " + nombreArchivo)
-    parsearArchivo(nombreArchivo)
+    parsearArchivo(nombreArchivo, False)
 
-def parsearArchivo(nombreArchivo):
-  print(nombreArchivo)
+def parsearArchivo(nombreArchivo, verb=True):
+  if verb:
+    print(nombreArchivo)
   contenido = contenidoDe_(nombreArchivo)
   tokens = tokenizar(contenido)
   # mostrarTokens(tokens)
@@ -316,8 +317,11 @@ def parsearArchivo(nombreArchivo):
   for a in ast.declaraciones:
     z += a.restore()
   if eq_string(contenido, z):
-    print("Restauración exitosa")
+    if verb:
+      print("Restauración exitosa")
   else:
+    if not verb:
+      print(nombreArchivo)
     print("Falló la restauración")
     mostrarDiff(contenido, z)
 
