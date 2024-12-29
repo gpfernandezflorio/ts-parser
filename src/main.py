@@ -23,8 +23,8 @@ archivosTest = [
   "clipboard/block_paster",
   "clipboard/registry",
   "clipboard/workspace_comment_paster",
-  # "clipboard",
-  # "common",
+  "clipboard",
+  "common",
   # "component_manager",
   "config",
   # "connection",
@@ -297,13 +297,15 @@ def main():
   if len(sys.argv) == 1:
     Boom("No me pasaste ningún archivo")
   nombreArchivo = sys.argv[1]
+  verb = True
   archivos = [nombreArchivo]
   if nombreArchivo == "TEST":
+    verb = False
     archivos = map(lambda x : f"../../blockly/core/{x}.ts", archivosTest)
   for nombreArchivo in archivos:
     if not existeArchivo_Acá(nombreArchivo):
       Boom("No existe el archivo " + nombreArchivo)
-    parsearArchivo(nombreArchivo, False)
+    parsearArchivo(nombreArchivo, verb)
 
 def parsearArchivo(nombreArchivo, verb=True):
   if verb:

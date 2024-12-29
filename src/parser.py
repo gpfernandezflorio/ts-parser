@@ -52,6 +52,7 @@ tokens = (
   'FORMAT_STRING_COMPLETE',
   'FLECHA',
   'PIPE',
+  'AND',
   'CASE',
   'TYPEOF',
   'VOID',
@@ -72,6 +73,7 @@ reserved_map = {
   'new':'NEW',
   'case':'CASE',
   'typeof':'TYPEOF',
+  'instanceof':'OPERADOR_BOOLEANO',
   'void':'VOID'
 }
 
@@ -118,6 +120,7 @@ t_OPERADOR_INFIJO = r'\+\+|--'
 t_OPERADOR_BOOLEANO = r'===|!==|==|!=|>=|<=|&&|\|\||\?\?'
 t_FLECHA = r'=>'
 t_PIPE = r'\|'
+t_AND = r'&'
 t_PREGUNTA = r'\?'
 t_EXCLAMACION = r'!'
 t_MAS = r'\+'
@@ -166,10 +169,11 @@ precedence = (
   ('left', 'FLECHA'),
   ('left', 'OPERADOR_BOOLEANO'),
   ('left', 'PREGUNTA'),
-  ('left', 'PIPE'),
+  ('left', 'PIPE','AND'),
   ('left', 'CIERRA_PAREN'),
   ('left', 'CIERRA_CORCHETE'),
   ('left', 'CIERRA_LLAVE'),
+  ('left', 'DECL_FUNC'),
   ('left', 'COMA'),
   ('left', 'AS'),
 )
@@ -2931,7 +2935,7 @@ def p_modificador_clase_no_vacio(p): # AST_modificador_declaracion
 
 def p_modificador_clase_implements(p): # AST_modificador_declaracion_implementacion
   '''
-  modificador_clase_no_vacio : IMPLEMENTS s id_clases opt_modificador_clase
+  modificador_clase_no_vacio : IMPLEMENTS s id_clases_coma opt_modificador_clase
   '''
   implements = AST_sintaxis(p[1])   # AST_sintaxis
   s = concatenar(implements, p[2])  # [AST_skippeable]
@@ -2944,20 +2948,20 @@ def p_modificador_clase_implements(p): # AST_modificador_declaracion_implementac
 
 def p_modificador_clase_extends(p): # AST_modificador_declaracion_extension
   '''
-  modificador_clase_no_vacio : EXTENDS s id_clase opt_modificador_clase
+  modificador_clase_no_vacio : EXTENDS s id_clases_and opt_modificador_clase
   '''
   s = AST_sintaxis(p[1])            # AST_sintaxis
   s = concatenar(s, p[2])           # [AST_skippeable]
-  nombre = p[3]                     # AST_tipo
+  nombre = p[3]                     # AST_tipo_varios
   rec = p[4]                        # AST_modificador_declaracion
   extension = AST_modificador_declaracion_extension(nombre)
   extension.apertura(s)
   extension.modificador_adicional(rec)
   p[0] = extension
 
-def p_id_clases(p): # AST_tipo_varios
+def p_id_clases_coma(p): # AST_tipo_varios
   '''
-  id_clases : id_clase s opt_mas_ids_clase
+  id_clases_coma : id_clase s opt_mas_ids_clase_coma
   '''
   clase = p[1]    # AST_tipo
   s = p[2]        # [AST_skippeable]
@@ -2970,15 +2974,46 @@ def p_id_clases(p): # AST_tipo_varios
     rec = AST_tipo_varios(clase)
   p[0] = clase
 
-def p_opt_mas_ids_clase_ninguna(p): # [AST_skippeable]
+def p_opt_mas_ids_clase_coma_ninguna(p): # [AST_skippeable]
   '''
-  opt_mas_ids_clase : vacio
+  opt_mas_ids_clase_coma : vacio
   '''
   p[0] = p[1]
 
-def p_opt_mas_ids_clase_otra(p): # AST_tipo_varios
+def p_opt_mas_ids_clase_coma_otra(p): # AST_tipo_varios
   '''
-  opt_mas_ids_clase : COMA s id_clases
+  opt_mas_ids_clase_coma : COMA s id_clases_coma
+  '''
+  s = AST_sintaxis(p[1])    # AST_sintaxis
+  s = concatenar(s, p[2])   # [AST_skippeable]
+  clase = p[3]              # AST_tipo_varios
+  clase.apertura(s)
+  p[0] = clase
+
+def p_id_clases_and(p): # AST_tipo_varios
+  '''
+  id_clases_and : id_clase s opt_mas_ids_clase_and
+  '''
+  clase = p[1]    # AST_tipo
+  s = p[2]        # [AST_skippeable]
+  rec = p[3]      # AST_tipo_varios | [AST_skippeable]
+  clase.clausura(s)
+  if isinstance(rec, AST_tipo_varios):
+    rec.agregar_tipo(clase)
+  else:
+    clase.clausura(rec)
+    rec = AST_tipo_varios(clase)
+  p[0] = clase
+
+def p_opt_mas_ids_clase_and_ninguna(p): # [AST_skippeable]
+  '''
+  opt_mas_ids_clase_and : vacio
+  '''
+  p[0] = p[1]
+
+def p_opt_mas_ids_clase_and_otra(p): # AST_tipo_varios
+  '''
+  opt_mas_ids_clase_and : AND s id_clases_and
   '''
   s = AST_sintaxis(p[1])    # AST_sintaxis
   s = concatenar(s, p[2])   # [AST_skippeable]
