@@ -27,15 +27,15 @@ archivosTest = [
   "common",
   "component_manager",
   "config",
-  # "connection", # Problema 2: tras abrir una llave no puedo diferenciar entre un objeto y un grupo de identificadores
+  # "connection", # Problema 1: tras abrir una llave no puedo diferenciar entre un objeto y un grupo de identificadores
   "connection_checker",
   "connection_db",
   "connection_type",
   "constants",
   "contextmenu",
   "contextmenu_items",
-  # "contextmenu_registry",
-  # "css",
+  "contextmenu_registry",
+  "css",
   "events/events",
   "events/events_abstract",
   "events/events_block_base",
