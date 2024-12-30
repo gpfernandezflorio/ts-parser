@@ -34,7 +34,8 @@ tokens = (
   'OPERADOR_BOOLEANO',
   'PREGUNTA',
   'EXCLAMACION',
-  'ITERADOR',
+  'IN',
+  'OF',
   'MAS',
   'MENOS',
   'POR',
@@ -74,7 +75,9 @@ reserved_map = {
   'case':'CASE',
   'typeof':'TYPEOF',
   'instanceof':'OPERADOR_BOOLEANO',
-  'void':'VOID'
+  'void':'VOID',
+  'in':'IN',
+  'of':'OF'
 }
 
 for k in ['let','const','var']:
@@ -92,15 +95,13 @@ for k in ['try','finally','do']:
 for k in ['return','throw']:
   reserved_map[k] = 'RETURN'
 
-for k in ['in','of']:
-  reserved_map[k] = 'ITERADOR'
-
 def t_IDENTIFICADOR(t):
   r'[A-Za-z_][\w_]*'
   t.type = reserved_map.get(t.value, "IDENTIFICADOR")
   return t
 t_NUMERO = r'(\d*\.\d+)|(0x)?\d+'
-t_STRING = r'("([^\\"]|\\"|\\[^"])*")|(\'([^\\\']|\\\'|\\[^\'])*\')|(`[^`$]*`)'
+#            [    comillas dobles   ] [     comillas simples      ] [       diagonales (re)       ] [backtick]
+t_STRING = r'("([^\\"]|\\"|\\[^"])*")|(\'([^\\\']|\\\'|\\[^\'])*\')|/[^/\*\ ]([^\\/\n\r]|\\\\/)*/g?|(`[^`$]*`)'
 t_COMENTARIO_UL = r'//[^\n\r]*'
 def t_COMENTARIO_ML(t):
   r'/\*([^\*]|\*[^/])*\*/'
@@ -163,7 +164,7 @@ precedence = (
   ('left', 'PUNTO_Y_COMA'),
   ('left', 'DOS_PUNTOS'),
   ('left', 'POR','DIV'),
-  ('left', 'OPERADOR_PREFIJO','EXCLAMACION','OPERADOR_INFIJO','ITERADOR'),
+  ('left', 'OPERADOR_PREFIJO','EXCLAMACION','OPERADOR_INFIJO','IN','OF'),
   ('left', 'MENOS','MAS'),
   ('left', 'ACCESO1', 'ACCESO2'),
   ('left', 'FLECHA'),
@@ -829,6 +830,7 @@ def p_nombre(p): # string
   '''
   nombre : IDENTIFICADOR
          | FROM
+         | IN
   '''
   p[0] = p[1]
 
@@ -1188,7 +1190,7 @@ def p_modificador_variable_asignacion(p): # AST_modificador_asignacion
 
 def p_modificador_variable_iteracion(p): # AST_iterador
   '''
-  modificador_variable_no_vacio : ITERADOR s expresion
+  modificador_variable_no_vacio : iterador s expresion
   '''
   iterador = AST_sintaxis(p[1])     # AST_sintaxis
   s = concatenar(iterador, p[2])    # [AST_skippeable]
@@ -1196,6 +1198,13 @@ def p_modificador_variable_iteracion(p): # AST_iterador
   iterador = AST_iterador(expresion)
   iterador.apertura(s)
   p[0] = iterador
+
+def p_iterador(p): # string
+  '''
+  iterador : IN
+           | OF
+  '''
+  p[0] = p[1]
 
 def p_modificador_variable_mas_variables(p): # AST_modificador_variable_adicional | [AST_skippeable]
   '''
@@ -2084,7 +2093,6 @@ def p_operador_operador_ternario(p): # AST_modificador_operador_ternario
 def p_operador_binario(p): # string
   '''
   operador_binario : OPERADOR_BOOLEANO
-                   | ITERADOR
                    | MAS
                    | POR
                    | DIV
@@ -2434,7 +2442,7 @@ def p_campo(p): # AST_campo
   '''
   campo : clave_campo s opt_valor_campo
   '''
-  clave = p[1]      # AST_identificador | AST_expresion_literal (string)
+  clave = p[1]      # AST_identificador | AST_declaracion_funcion | ¿AST_invocacion? |AST_expresion_literal (string)
   s = p[2]          # [AST_skippeable]
   opt_valor = p[3]  # AST_expresion | [AST_skippeable]
   clave.clausura(s)
@@ -2460,12 +2468,31 @@ def p_campo_sin_valor(p): # [AST_skippeable]
   '''
   p[0] = p[1]
 
-def p_clave_campo_identificador(p): # AST_identificador
+def p_clave_campo_identificador(p): # AST_identificador | AST_declaracion_funcion | ¿AST_invocacion?
   '''
-  clave_campo : IDENTIFICADOR
+  clave_campo : IDENTIFICADOR opt_definicion_funcion
   '''
   clave = AST_identificador(p[1]) # AST_identificador
+  opt_definicion = p[2]           # AST_funcion_incompleta | AST_invocacion | [AST_skippeable]
+  if isinstance(opt_definicion, AST_invocacion):
+    pass # ¿Esto sería un error?
+  elif isinstance(opt_definicion, AST_funcion_incompleta):
+    clave = AST_declaracion_funcion(clave, opt_definicion)
+  else:
+    clave.clausura(opt_definicion)
   p[0] = clave
+
+def p_opt_definicion_funcion_si(p): # AST_funcion_incompleta | AST_invocacion
+  '''
+  opt_definicion_funcion : definicion_funcion
+  '''
+  p[0] = p[1]
+
+def p_opt_definicion_funcion_no(p): # [AST_skippeable]
+  '''
+  opt_definicion_funcion : vacio
+  '''
+  p[0] = p[1]
 
 def p_clave_campo_string(p): # AST_expresion_literal
   '''
@@ -2965,7 +2992,7 @@ def p_identificadores_con_modificadores_sin_llaves(p): # AST_identificador | AST
 
 def p_identificador_con_modificadores_pre(p): # AST_identificador | AST_identificadores
   '''
-  identificador_con_modificadores_pre_sin_llaves : IDENTIFICADOR s opt_mas_identificadores_o_modificadores
+  identificador_con_modificadores_pre_sin_llaves : nombre s opt_mas_identificadores_o_modificadores
   '''
   identificador = AST_identificador(p[1])   # AST_identificador
   s = p[2]                                  # [AST_skippeable]
@@ -3034,6 +3061,13 @@ def p_modificador_dentro_de_clase_asignacion(p): # AST_modificador_asignacion
   '''
   asignacion = p[1]       # AST_modificador_asignacion
   p[0] = asignacion
+
+def p_modificador_dentro_de_clase_modificador_objeto(p): # AST_modificador_objeto
+  '''
+  modificador_dentro_de_clase_no_vacio : modificador_objeto_expresion_no_vacio
+  '''
+  modificador = p[1]       # AST_modificador_objeto
+  p[0] = modificador
 
 def p_modificador_dentro_de_clase_funcion(p): # AST_expresion_funcion
   '''
@@ -3613,7 +3647,7 @@ class AST_parametros(AST_declaracion):
 class AST_campo(AST_declaracion):
   def __init__(self, clave, valor):
     super().__init__()
-    self.clave = clave  # AST_identificador | AST_expresion_literal (string)
+    self.clave = clave  # AST_identificador | AST_declaracion_funcion | ¿AST_invocacion? | AST_expresion_literal (string)
     self.valor = valor  # AST_expresion | None
   def __str__(self):
     valor = '' if self.valor is None else f":{show(self.valor)}"
