@@ -1531,13 +1531,6 @@ def p_modificador_asignable_operador(p): # AST_modificador_operador
   modificador.modificador_adicional(cierre)
   p[0] = modificador
 
-# def p_modificador_asignable_cierre(p): # [AST_skippeable]
-#   '''
-#   modificador_asignable : cierre
-#   '''
-#   cierre = p[1]                     # [AST_skippeable]
-#   p[0] = cierre
-
 def p_modificador_objeto_acceso(p): # AST_modificador_objeto_acceso
   '''
   modificador_objeto_expresion_no_vacio : operador_acceso s nombre opt_modificador_asignable opt_cierre
@@ -3593,6 +3586,7 @@ class AST_nodo(object):
       self.post_mods.append(modificador)
       for m in modificador.adicional:
         self.agregar_modificador_post(m)
+      modificador.adicional = []
     else:
       self.clausura(modificador)
   def apertura(self, c):
@@ -4087,7 +4081,9 @@ class AST_decorador(AST_modificador):
 class AST_decorador_tipo(AST_decorador):
   def __init__(self, tipo):
     super().__init__()
-    for m in tipo.adicional:
+    adicionales = tipo.adicional
+    tipo.adicional = []
+    for m in adicionales:
       tipo = aplicarModificador(tipo, m)
     self.tipo = tipo                      # AST_tipo
   def restore(self):
@@ -4096,7 +4092,9 @@ class AST_decorador_tipo(AST_decorador):
 class AST_decorador_subtipo(AST_decorador):
   def __init__(self, tipo):
     super().__init__()
-    for m in tipo.adicional:
+    adicionales = tipo.adicional
+    tipo.adicional = []
+    for m in adicionales:
       tipo = aplicarModificador(tipo, m)
     self.tipo = tipo                      # AST_tupla
   def restore(self):
@@ -4580,8 +4578,7 @@ def mostrarTokens(tokens):
     print(fill(str(t.lineno),3) + ":" + fill(str(t.colno),6) + fill(t.type,15) + clean(t.value))
 
 def mostrarAST(ast):
-  for n in ast:
-    print(n)
+  print(show(ast))
 
 def mostrarDiff(a, b):
   lineas_a = a.split('\n')
