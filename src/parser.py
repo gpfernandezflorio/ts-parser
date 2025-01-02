@@ -107,7 +107,7 @@ def t_IDENTIFICADOR(t):
   return t
 t_NUMERO = r'(\d*\.\d+)|(0x)?\d+'
 #            [    comillas dobles   ] [     comillas simples      ] [       diagonales (re)       ] [backtick]
-t_STRING = r'("([^\\"]|\\"|\\[^"])*")|(\'([^\\\']|\\\'|\\[^\'])*\')|/[^/\*\ ]([^\\/\n\r]|\\\\/)*/g?|(`[^`$]*`)'
+t_STRING = r'("([^\\"]|\\"|\\[^"])*")|(\'([^\\\']|\\\'|\\[^\'])*\')|/[^/\*\ ]([^\\/\n\r]|\\\\/)*/g?i?|(`[^`$]*`)'
 t_COMENTARIO_UL = r'//[^\n\r]*'
 def t_COMENTARIO_ML(t):
   r'/\*([^\*]|\*[^/])*\*/'
@@ -1043,7 +1043,6 @@ def p_tipo_lista(p): # AST_tipo_varios
   tipo = tipoDesdeNodo(lista)
   tipo = aplicarModificador(tipo, opt_adicional)
   p[0] = tipo
-  
 
 def p_tipo_parentesis(p): # AST_tipo (puede ser AST_tipo_flecha o un AST_tipo cualquiera entre paréntesis)
   '''
@@ -1069,11 +1068,13 @@ def p_tipo_new(p): # AST_tipo
 
 def p_tipo_derivado(p): # AST_tipo_derivado
   '''
-  tipo_sin_id : TYPEOF s IDENTIFICADOR
+  tipo_sin_id : TYPEOF s IDENTIFICADOR opt_modificador_objeto_expresion
   '''
   s = AST_sintaxis(p[1])                                            # AST_sintaxis
   s = concatenar(s, p[2])                                           # AST_skippeable
   expresion = AST_expresion_identificador(AST_identificador(p[3]))  # AST_expresion
+  modificador = p[4]
+  expresion = aplicarModificador(expresion, modificador)
   tipo = AST_tipo_derivado(expresion)
   tipo.apertura(s)
   p[0] = tipo
@@ -1750,9 +1751,13 @@ def p_expresion_asignada_objeto(p): # AST_expresion_objeto
 
 def p_expresion_asignada_lista(p): # AST_expresion_lista
   '''
-  expresion_asignada_sin_pre : lista opt_cierre
+  expresion_asignada_sin_pre : lista opt_modificador_objeto_expresion opt_cierre
   '''
-  lista = p[1]
+  lista = p[1]            # AST_expresion_lista
+  modificador = p[2]      # AST_argumentos | AST_modificador_operador | AST_modificador_objeto | AST_modificador_comotipo | [AST_skippeable]
+  cierre = p[3]           # [AST_skippeable]
+  lista = aplicarModificador(lista, modificador)
+  lista.clausura(cierre)
   p[0] = lista
 
 def p_expresion_asignada_parentesis(p): # AST_expresion
@@ -2160,10 +2165,12 @@ def p_expresion_typeof(p): # AST_expresion
 
 def p_expresion_lista(p): # AST_expresion_lista
   '''
-  expresion_suelta : lista
+  expresion_suelta : lista opt_modificador_objeto_expresion
   '''
-  objeto = p[1]
-  p[0] = objeto
+  lista = p[1]            # AST_expresion_lista
+  modificador = p[2]      # AST_argumentos | AST_modificador_operador | AST_modificador_objeto | AST_modificador_comotipo | [AST_skippeable]
+  lista = aplicarModificador(lista, modificador)
+  p[0] = lista
 
 def p_expresion_parentesis(p): # AST_expresion
   '''
@@ -2531,13 +2538,11 @@ def p_mas_elementos(p): # AST_elementos
 
 def p_fin_elementos(p): # AST_elementos
   '''
-  fin_elementos : CIERRA_CORCHETE opt_modificador_objeto_expresion
+  fin_elementos : CIERRA_CORCHETE
   '''
   s = AST_sintaxis(p[1])  # AST_sintaxis
-  opt_adicional = p[2]    # AST_argumentos | AST_modificador_operador | AST_modificador_objeto | AST_modificador_comotipo | [AST_skippeable]
   elementos = AST_elementos()
   elementos.clausura(s)
-  elementos.modificador_adicional(opt_adicional)
   p[0] = elementos
 
 def p_opt_modificador_objeto_expresion_con_skip(p):
@@ -4539,6 +4544,10 @@ def tipoDesdeNodo(nodo):
     tipo.imitarEspacios(nodo)
   elif isinstance(nodo, AST_identificador):
     tipo = AST_tipo_base(nodo)
+  elif isinstance(nodo, AST_operador):
+    if nodo.op == '|':
+      tipo = AST_tipo_suma(list(map(tipoDesdeNodo, [nodo.izq, nodo.der])))
+      tipo.imitarEspacios(nodo)
   else:
     # ERROR
     fallaDebug()
