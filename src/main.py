@@ -126,7 +126,7 @@ archivosTest = [
   "keyboard_nav/cursor",
   "keyboard_nav/marker",
   "keyboard_nav/tab_navigate_cursor",
-  # "renderers/common/block_rendering",
+  "renderers/common/block_rendering",
   # "renderers/common/constants",
   "renderers/common/drawer",
   # "renderers/common/info",

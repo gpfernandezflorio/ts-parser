@@ -921,11 +921,7 @@ def p_opt_modificador_tipo_con_skip(p): # AST_tipo_lista | AST_tipo_suma | AST_t
   '''
   s = p[1]      # [AST_skippeable]
   tipo = p[2]   # AST_tipo_lista | AST_tipo_suma | AST_modificador_objeto_acceso | [AST_skippeable]
-  if isinstance(tipo, AST_nodo):
-    tipo.apertura(s)
-  else:
-    tipo = concatenar(s, tipo)
-  p[0] = tipo
+  p[0] = modificador_con_skip(tipo, s)
 
 def p_opt_modificador_tipo_sin_skip(p): # AST_tipo_lista | AST_tipo_suma | AST_tipo_tupla | AST_modificador_objeto_acceso | [AST_skippeable]
   '''
@@ -2789,11 +2785,7 @@ def p_opt_if_con_skip(p): # AST_combinador | [AST_skippeable]
   '''
   s = p[1]            # [AST_skippeable]
   selector = p[2]     # AST_combinador | [AST_skippeable]
-  if (isinstance(selector, AST_combinador)):
-    selector.apertura(s)
-  else:
-    selector = concatenar(s, selector)
-  p[0] = selector
+  p[0] = modificador_con_skip(selector, s)
 
 def p_opt_if_sin_skip(p): # AST_combinador | [AST_skippeable]
   '''
@@ -3015,9 +3007,8 @@ def p_opt_modificador_identificador_con_skip(p):
   opt_modificador_identificador : sf modificador_identificador
   '''
   s = p[1]
-  modificador = p[2]
-  modificador.apertura(s)
-  p[0] = modificador
+  modificador = p[2] # AST_modificador_asignacion | [AST_skippeable]
+  p[0] = modificador_con_skip(modificador, s)
 
 def p_opt_modificador_identificador_sin_skip(p):
   '''
