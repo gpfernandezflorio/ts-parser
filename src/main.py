@@ -27,7 +27,7 @@ archivosTest = [
   "common",
   "component_manager",
   "config",
-  # "connection", # Problema 1: tras abrir una llave no puedo diferenciar entre un objeto y un grupo de identificadores
+  "connection",
   "connection_checker",
   "connection_db",
   "connection_type",

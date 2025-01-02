@@ -167,6 +167,7 @@ precedence = (
   ('left', 'OPERADOR_PREFIJO','EXCLAMACION','OPERADOR_INFIJO','IN','OF'),
   ('left', 'MENOS','MAS'),
   ('left', 'ACCESO1', 'ACCESO2'),
+  ('left', 'ASIGNACION1', 'ASIGNACION2'),
   ('left', 'FLECHA'),
   ('left', 'OPERADOR_BOOLEANO'),
   ('left', 'PREGUNTA'),
@@ -432,7 +433,7 @@ def p_modificador_funcion_invocacion(p): # AST_argumentos
 
 def p_parametros(p): # AST_parametros
   '''
-  parametros : ABRE_PAREN s identificadores CIERRA_PAREN s
+  parametros : ABRE_PAREN s identificadores_parametros CIERRA_PAREN s
   '''
   abre = AST_sintaxis(p[1])
   s1 = concatenar(abre, p[2])       # [AST_skippeable]
@@ -455,6 +456,168 @@ def p_cuerpo(p): # AST_cuerpo
   programa.apertura(abre)
   programa.clausura(cierra)
   p[0] = programa
+
+def p_identificadores_parametros_vacio(p): # [AST_identificador | AST_identificador_objeto]
+  '''
+  identificadores_parametros : vacio
+  '''
+  p[0] = []
+
+def p_identificadores_parametros_no_vacio(p): # [AST_identificador | AST_identificador_objeto]
+  '''
+  identificadores_parametros : identificadores_parametros_no_vacio
+  '''
+  p[0] = p[1]
+
+def p_identificadores_parametros_primer_identificador(p): # [AST_identificador | AST_identificador_objeto]
+  '''
+  identificadores_parametros_no_vacio : identificador_parametro opt_decorador_parametro mas_identificadores_parametros
+  '''
+  identificador = p[1]      # AST_identificador
+  opt_mod = p[2]            # AST_decorador | [AST_skippeable]
+  rec = p[3]                # [AST_identificador | AST_identificador_objeto] | [AST_skippeable]
+  identificador = aplicarModificador(identificador, opt_mod)
+  if len(rec) > 0 and isinstance(rec[0], AST_asignable):
+    rec.insert(0, identificador)
+  else:
+    identificador.clausura(rec)
+    rec = [identificador]
+  p[0] = rec
+
+def p_mas_identificadores_parametros_fin(p): # [AST_skippeable]
+  '''
+  mas_identificadores_parametros : vacio
+  '''
+  p[0] = []
+
+def p_mas_identificadores_parametros(p): # [AST_identificador | AST_identificador_objeto] | [AST_skippeable]
+  '''
+  mas_identificadores_parametros : mas_identificadores_parametros_no_vacio
+  '''
+  p[0] = p[1]
+
+def p_mas_identificadores_parametros_no_vacio(p): # [AST_identificador | AST_identificador_objeto] | [AST_skippeable]
+  '''
+  mas_identificadores_parametros_no_vacio : COMA s identificadores_parametros
+  '''
+  coma = AST_sintaxis(p[1])
+  s = concatenar(coma, p[2])  # [AST_skippeable]
+  rec = p[3]                  # [AST_identificador | AST_identificador_objeto] | [AST_skippeable]
+  if len(rec) > 0 and isinstance(rec[0], AST_asignable):
+    rec[0].apertura(s)
+  else:
+    rec = concatenar(s, rec)
+  p[0] = rec
+
+def p_identificador_parametro_objeto(p): # AST_identificador | AST_identificador_objeto
+  '''
+  identificador_parametro : ABRE_LLAVE s campos_parametro
+  '''
+  abre = AST_sintaxis(p[1])     # AST_sintaxis
+  s = concatenar(abre, p[2])    # [AST_skippeable]
+  campos = p[3]                 # AST_campos
+  objeto = AST_identificador_objeto(campos)
+  objeto.apertura(s)
+  p[0] = objeto
+
+def p_identificador_parametro_identificador(p): # AST_identificador | AST_identificador_objeto
+  '''
+  identificador_parametro : nombre s opt_mas_identificadores_o_modificadores_parametro
+  '''  
+  identificador = AST_identificador(p[1])   # AST_identificador
+  s = p[2]                                  # [AST_skippeable]
+  rec = p[3]                                # AST_identificador | AST_identificadores | AST_identificador_objeto | [AST_skippeable]
+  identificador.clausura(s)
+  if isinstance(rec, AST_asignable):
+    rec.agregar_modificador_pre(identificador)
+    identificador = rec
+  else:
+    identificador.clausura(rec)
+  p[0] = identificador
+
+def p_mas_identificadores_o_modificadores_parametro_vacio(p): # [AST_skippeable]
+  '''
+  opt_mas_identificadores_o_modificadores_parametro : vacio
+  '''
+  p[0] = p[1]
+
+def p_mas_identificadores_o_modificadores_parametro_no_vacio(p): # AST_identificador | AST_identificadores | AST_identificador_objeto
+  '''
+  opt_mas_identificadores_o_modificadores_parametro : identificador_parametro
+  '''
+  p[0] = p[1]
+
+def p_campos_parametro_vacio(p): # AST_campos
+  '''
+  campos_parametro : fin_campos_parametro
+  '''
+  fin_campos = p[1]
+  p[0] = fin_campos
+
+def p_campos_parametro_no_vacio(p): # AST_campos
+  '''
+  campos_parametro : campo_parametro mas_campos_parametro
+  '''
+  campo = p[1]          # AST_campo
+  campos = p[2]         # AST_campos
+  campos.agregar_campo(campo)
+  p[0] = campos
+
+def p_mas_campos_parametro_fin(p): # AST_campos
+  '''
+  mas_campos_parametro : fin_campos_parametro
+  '''
+  fin_campos = p[1]
+  p[0] = fin_campos
+
+def p_mas_campos_parametro(p): # AST_campos
+  '''
+  mas_campos_parametro : COMA s campos_parametro
+  '''
+  coma = AST_sintaxis(p[1])
+  s = concatenar(coma, p[2])  # [AST_skippeable]
+  campos = p[3]               # AST_campos
+  campos.apertura(s)
+  p[0] = campos
+
+def p_fin_campos_parametro(p): # AST_campos
+  '''
+  fin_campos_parametro : CIERRA_LLAVE
+  '''
+  s = AST_sintaxis(p[1])
+  campos = AST_campos()
+  campos.clausura(s)
+  p[0] = campos
+
+def p_campo_parametro(p): # AST_campo
+  '''
+  campo_parametro : clave_campo s opt_valor_campo_parametro
+  '''
+  clave = p[1]      # AST_identificador | AST_declaracion_funcion | ¿AST_invocacion? |AST_expresion_literal (string)
+  s = p[2]          # [AST_skippeable]
+  opt_valor = p[3]  # AST_expresion | [AST_skippeable]
+  clave.clausura(s)
+  if not isinstance(opt_valor, AST_expresion):
+    clave.clausura(opt_valor)
+    opt_valor = None
+  campo = AST_campo(clave, opt_valor)
+  p[0] = campo
+
+def p_campo_parametro_con_valor(p): # AST_expresion
+  '''
+  opt_valor_campo_parametro : ASIGNACION1 s expresion
+  '''
+  s = AST_sintaxis(p[1])    # AST_sintaxis
+  s = concatenar(s, p[2])   # [AST_skippeable]
+  valor = p[3]
+  valor.apertura(s)
+  p[0] = valor
+
+def p_campo_parametro_sin_valor(p): # [AST_skippeable]
+  '''
+  opt_valor_campo_parametro : vacio
+  '''
+  p[0] = p[1]
 
 def p_identificadores_vacio(p): # [AST_identificador]
   '''
@@ -3760,6 +3923,21 @@ class AST_identificadores(AST_asignable):
   def restore(self):
     return super().restore(f"{''.join(map(restore, self.identificadores))}")
 
+class AST_identificador_objeto(AST_asignable):
+  def __init__(self, campos):
+    super().__init__()
+    self.campos = campos        # AST_campos
+    self.decoradores = []       # [AST_decorador]
+  def agregar_decorador(self, decorador):
+    self.decoradores.append(decorador)
+    for d in decorador.adicional:
+      self.agregar_decorador(d)
+    decorador.adicional = []
+  def __str__(self):
+    return f"{show(self.campos)}"
+  def restore(self):
+    return super().restore(f"{restore(self.campos)}{restore(self.decoradores)}")
+
 class AST_import(AST_declaracion):
   def __init__(self, archivo, importables=None, opt_alias=[]):
     super().__init__()
@@ -3800,6 +3978,9 @@ class AST_funcion_incompleta(AST_modificador):
     self.decoradores = []          # [AST_decorador]
   def agregar_decorador(self, decorador):
     self.decoradores.append(decorador)
+    for d in decorador.adicional:
+      self.agregar_decorador(d)
+    decorador.adicional = []
 
 class AST_decorador(AST_modificador):
   def __init__(self):
@@ -4179,6 +4360,14 @@ def aplicarModificador(nodo, mod):
     resultado.agregar_modificador_post(mod)
   elif isinstance(mod, AST_decorador):
     # DECORADOR: {nodo} : {mod} | {nodo} ? | {nodo} = {mod}
+    if not (
+      type(nodo) == AST_identificador or
+      type(nodo) == AST_identificadores or
+      type(nodo) == AST_identificador_objeto or
+      type(nodo) == AST_funcion_incompleta
+    ):
+      # ERROR
+      fallaDebug()
     resultado.agregar_decorador(mod)
   elif type(mod) is AST_tipo_lista:
     # TIPO LISTA: {nodo} []
