@@ -401,7 +401,7 @@ def p_definicion_funcion(p): # AST_funcion_incompleta | AST_invocacion
 
 def p_opt_modificador_funcion(p): # AST_argumentos | AST_modificador_objeto | [AST_skippeable]
   '''
-  opt_modificador_funcion : modificador_funcion_no_vacio
+  opt_modificador_funcion : modificador_funcion
                           | sf opt_modificador_funcion
                           | vacio
   '''
@@ -409,14 +409,14 @@ def p_opt_modificador_funcion(p): # AST_argumentos | AST_modificador_objeto | [A
 
 def p_modificador_funcion_invocacion(p): # AST_argumentos
   '''
-  modificador_funcion_no_vacio : invocacion
+  modificador_funcion : invocacion
   '''
   modificador_expresion = p[1]  # AST_argumentos
   p[0] = modificador_expresion
 
 def p_modificador_funcion_modificador_objeto(p): # AST_modificador_objeto
   '''
-  modificador_funcion_no_vacio : modificador_objeto_expresion_no_vacio
+  modificador_funcion : modificador_objeto_expresion
   '''
   modificador_expresion = p[1]  # AST_modificador_objeto
   p[0] = modificador_expresion
@@ -680,7 +680,7 @@ def p_mas_identificadores_no_vacio(p): # [AST_identificador] | [AST_skippeable]
 
 def p_opt_decorador_declaracion_clase(p): # AST_decorador_opcional | AST_decorador_tipo | [AST_skippeable]
   '''
-  opt_decorador_declaracion_clase : decorador_declaracion_clase_no_vacio
+  opt_decorador_declaracion_clase : decorador_declaracion_clase
                                   | sf opt_decorador_declaracion_clase
                                   | vacio
   '''
@@ -688,7 +688,7 @@ def p_opt_decorador_declaracion_clase(p): # AST_decorador_opcional | AST_decorad
 
 def p_opt_decorador_declaracion_clase_opcional(p): # AST_decorador_opcional
   '''
-  decorador_declaracion_clase_no_vacio : decorador_opcional
+  decorador_declaracion_clase : decorador_opcional
   '''
   p[0] = p[1]
 
@@ -707,20 +707,20 @@ def p_decorador_opcional(p): # AST_decorador_opcional
 
 def p_decorador_declaracion_clase_decorador_identificador(p): # AST_decorador_tipo
   '''
-  decorador_declaracion_clase_no_vacio : decorador_identificador_no_vacio
+  decorador_declaracion_clase : decorador_identificador
   '''
   p[0] = p[1]
 
 def p_decorador_declaracion_clase_decorador_id_clase(p): # AST_decorador_tipo
   '''
-  decorador_declaracion_clase_no_vacio : modificador_id_clase_no_vacio
+  decorador_declaracion_clase : modificador_id_clase
   '''
   tipo_tupla = p[1]
   p[0] = AST_decorador_tipo(p[1])
 
 def p_opt_decorador_parametro(p): # AST_decorador_alias | AST_decorador_defualt | AST_decorador_opcional | AST_decorador_tipo | [AST_skippeable]
   '''
-  opt_decorador_parametro : decorador_parametro_no_vacio
+  opt_decorador_parametro : decorador_parametro
                           | sf opt_decorador_parametro
                           | vacio
   '''
@@ -728,7 +728,7 @@ def p_opt_decorador_parametro(p): # AST_decorador_alias | AST_decorador_defualt 
 
 def p_decorador_parametro_alias(p): # AST_decorador_alias
   '''
-  decorador_parametro_no_vacio : AS s IDENTIFICADOR
+  decorador_parametro : AS s IDENTIFICADOR
   '''
   s = AST_sintaxis(p[1])            # AST_sintaxis
   s = concatenar(s,p[2])            # [AST_skippeable]
@@ -738,7 +738,7 @@ def p_decorador_parametro_alias(p): # AST_decorador_alias
 
 def p_decorador_parametro_default(p): # AST_decorador_defualt
   '''
-  decorador_parametro_no_vacio : simbolo_asignacion s expresion_asignada
+  decorador_parametro : simbolo_asignacion s expresion_asignada
   '''
   s = AST_sintaxis(p[1])                        # AST_sintaxis
   s = concatenar(s, p[2])                       # [AST_skippeable]
@@ -749,7 +749,7 @@ def p_decorador_parametro_default(p): # AST_decorador_defualt
 
 def p_decorador_parametro_decorador_clase(p): # AST_decorador_opcional | AST_decorador_tipo
   '''
-  decorador_parametro_no_vacio : decorador_declaracion_clase_no_vacio opt_decorador_parametro
+  decorador_parametro : decorador_declaracion_clase opt_decorador_parametro
   '''
   decorador = p[1]
   opt_adicional = p[2]
@@ -758,7 +758,7 @@ def p_decorador_parametro_decorador_clase(p): # AST_decorador_opcional | AST_dec
 
 def p_opt_decorador_identificador(p): # AST_decorador_tipo | [AST_skippeable]
   '''
-  opt_decorador_identificador : decorador_identificador_no_vacio
+  opt_decorador_identificador : decorador_identificador
                               | sf opt_decorador_identificador
                               | vacio
   '''
@@ -766,14 +766,14 @@ def p_opt_decorador_identificador(p): # AST_decorador_tipo | [AST_skippeable]
 
 def p_decorador_identificador_decorador_tipo(p): # AST_decorador_tipo
   '''
-  decorador_identificador_no_vacio : decorador_identificador_tipo_no_vacio
+  decorador_identificador : decorador_identificador_tipo
   '''
   decorador = p[1]    # AST_decorador_tipo
   p[0] = decorador
 
 def p_opt_decorador_identificador_tipo(p): # AST_decorador_tipo | [AST_skippeable]
   '''
-  opt_decorador_identificador_tipo : decorador_identificador_tipo_no_vacio
+  opt_decorador_identificador_tipo : decorador_identificador_tipo
                                    | sf opt_decorador_identificador_tipo
                                    | vacio
   '''
@@ -781,7 +781,7 @@ def p_opt_decorador_identificador_tipo(p): # AST_decorador_tipo | [AST_skippeabl
 
 def p_decorador_identificador_tipo(p): # AST_decorador_tipo
   '''
-  decorador_identificador_tipo_no_vacio : DOS_PUNTOS s tipo s opt_is
+  decorador_identificador_tipo : DOS_PUNTOS s tipo s opt_is
   '''
   abre = AST_sintaxis(p[1])       # AST_sintaxis
   abre = concatenar(abre, p[2])   # [AST_skippeable]
@@ -906,7 +906,7 @@ def p_nombre(p): # string
 
 def p_modificador_tipo_clase(p): # AST_tipo_tupla
   '''
-  modificador_tipo : modificador_id_clase_no_vacio
+  modificador_tipo : modificador_id_clase
   '''
   p[0] = p[1]
 
@@ -1079,7 +1079,7 @@ def p_continuacion_tipo_o_parametros_coma(p): # AST_tipo_flecha
 
 def p_continuacion_tipo_o_parametros_dos_puntos(p): # AST_tipo_flecha
   '''
-  continuacion_identificador_para_tipo_o_parametros : decorador_identificador_tipo_no_vacio s mas_identificadores CIERRA_PAREN s FLECHA s tipo
+  continuacion_identificador_para_tipo_o_parametros : decorador_identificador_tipo s mas_identificadores CIERRA_PAREN s FLECHA s tipo
                                                     | decorador_opcional s mas_identificadores CIERRA_PAREN s FLECHA s tipo
   '''
   decorador = p[1]                  # AST_decorador_tipo
@@ -1269,7 +1269,7 @@ def p_identificador_con_corchetes(p): # AST_identificadores
 
 def p_opt_modificador_variable(p): # AST_modificador_asignacion | AST_iterador | AST_modificador_variable_adicional | [AST_skippeable]
   '''
-  opt_modificador_variable : modificador_variable_no_vacio
+  opt_modificador_variable : modificador_variable
                            | sf opt_modificador_variable
                            | vacio
   '''
@@ -1277,7 +1277,7 @@ def p_opt_modificador_variable(p): # AST_modificador_asignacion | AST_iterador |
 
 def p_modificador_variable_asignacion(p): # AST_modificador_asignacion
   '''
-  modificador_variable_no_vacio : asignacion opt_mas_variables
+  modificador_variable : asignacion opt_mas_variables
   '''
   asignacion = p[1]       # AST_modificador_asignacion
   opt_adicional = p[2]    # AST_modificador_variable_adicional | [AST_skippeable]
@@ -1286,7 +1286,7 @@ def p_modificador_variable_asignacion(p): # AST_modificador_asignacion
 
 def p_modificador_variable_iteracion(p): # AST_iterador
   '''
-  modificador_variable_no_vacio : iterador s expresion
+  modificador_variable : iterador s expresion
   '''
   iterador = AST_sintaxis(p[1])     # AST_sintaxis
   s = concatenar(iterador, p[2])    # [AST_skippeable]
@@ -1304,7 +1304,7 @@ def p_iterador(p): # string
 
 def p_modificador_variable_mas_variables(p): # AST_modificador_variable_adicional | [AST_skippeable]
   '''
-  modificador_variable_no_vacio : mas_variables
+  modificador_variable : mas_variables
   '''
   p[0] = p[1]
 
@@ -1353,7 +1353,7 @@ def p_declaracion_id(p): # AST_invocacion | AST_asignacion | AST_identificador |
 
 def p_opt_modificador_asignable(p): # AST_modificador_asignacion | AST_modificador_objeto | AST_argumentos | AST_modificador_comotipo | AST_modificador_operador | [AST_skippeable]
   '''
-  opt_modificador_asignable : modificador_asignable_no_vacio
+  opt_modificador_asignable : modificador_asignable
                             | sf opt_modificador_asignable
                             | vacio
   '''
@@ -1361,21 +1361,21 @@ def p_opt_modificador_asignable(p): # AST_modificador_asignacion | AST_modificad
 
 def p_modificador_asignable_asignacion(p): # AST_modificador_asignacion
   '''
-  modificador_asignable_no_vacio : asignacion
+  modificador_asignable : asignacion
   '''
   asignacion = p[1]       # AST_modificador_asignacion
   p[0] = asignacion
 
 def p_modificador_asignable_modificador_objeto(p): # AST_modificador_objeto | AST_argumentos
   '''
-  modificador_asignable_no_vacio : modificador_objeto_comando_no_vacio
+  modificador_asignable : modificador_objeto_comando
   '''
   modificador_objeto = p[1]         # AST_modificador_objeto | AST_argumentos
   p[0] = modificador_objeto
 
 def p_modificador_asignable_modificador_comotipo(p): # AST_modificador_comotipo
   '''
-  modificador_asignable_no_vacio : comotipo opt_modificador_asignable
+  modificador_asignable : comotipo opt_modificador_asignable
   '''
   modificador = p[1]        # AST_modificador_comotipo
   opt_adicional = p[2]      # AST_modificador | [AST_skippeable]
@@ -1384,14 +1384,14 @@ def p_modificador_asignable_modificador_comotipo(p): # AST_modificador_comotipo
 
 def p_modificador_asignable_operador(p): # AST_modificador_operador
   '''
-  modificador_asignable_no_vacio : operador
+  modificador_asignable : operador
   '''
   modificador = p[1]                # AST_modificador_operador
   p[0] = modificador
 
 def p_opt_modificador_asignable_no_tipado(p): # AST_modificador_asignacion | AST_modificador_objeto | AST_argumentos | AST_modificador_comotipo | AST_modificador_operador | [AST_skippeable]
   '''
-  opt_modificador_asignable_no_tipado : modificador_asignable_no_tipado_no_vacio
+  opt_modificador_asignable_no_tipado : modificador_asignable_no_tipado
                                       | sf opt_modificador_asignable_no_tipado
                                       | vacio
   '''
@@ -1399,21 +1399,21 @@ def p_opt_modificador_asignable_no_tipado(p): # AST_modificador_asignacion | AST
 
 def p_modificador_asignable_no_tipado_asignacion(p): # AST_modificador_asignacion
   '''
-  modificador_asignable_no_tipado_no_vacio : asignacion
+  modificador_asignable_no_tipado : asignacion
   '''
   asignacion = p[1]       # AST_modificador_asignacion
   p[0] = asignacion
 
 def p_modificador_asignable_no_tipado_modificador_objeto(p): # AST_modificador_objeto | AST_argumentos
   '''
-  modificador_asignable_no_tipado_no_vacio : modificador_objeto_comando_no_tipado_no_vacio
+  modificador_asignable_no_tipado : modificador_objeto_comando_no_tipado
   '''
   modificador_objeto = p[1]         # AST_modificador_objeto | AST_argumentos
   p[0] = modificador_objeto
 
 def p_modificador_asignable_no_tipado_modificador_comotipo(p): # AST_modificador_comotipo
   '''
-  modificador_asignable_no_tipado_no_vacio : comotipo opt_modificador_asignable_no_tipado
+  modificador_asignable_no_tipado : comotipo opt_modificador_asignable_no_tipado
   '''
   modificador = p[1]        # AST_modificador_comotipo
   opt_adicional = p[2]      # AST_modificador | [AST_skippeable]
@@ -1422,14 +1422,14 @@ def p_modificador_asignable_no_tipado_modificador_comotipo(p): # AST_modificador
 
 def p_modificador_asignable_no_tipado_operador(p): # AST_modificador_operador
   '''
-  modificador_asignable_no_tipado_no_vacio : operador_no_tipado
+  modificador_asignable_no_tipado : operador_no_tipado
   '''
   modificador = p[1]                # AST_modificador_operador
   p[0] = modificador
 
 def p_opt_modificador_objeto_expresion(p): # AST_modificador_asignacion | AST_modificador_objeto | AST_tipo_lista | AST_modificador_comotipo | [AST_skippeable]
   '''
-  opt_modificador_objeto_expresion : modificador_objeto_expresion_no_vacio
+  opt_modificador_objeto_expresion : modificador_objeto_expresion
                                    | sf opt_modificador_objeto_expresion
                                    | vacio
   '''
@@ -1437,13 +1437,13 @@ def p_opt_modificador_objeto_expresion(p): # AST_modificador_asignacion | AST_mo
 
 def p_modificador_objeto_expresion_asignacion(p): # AST_modificador_asignacion
   '''
-  modificador_objeto_expresion_no_vacio : asignacion
+  modificador_objeto_expresion : asignacion
   '''
   p[0] = p[1]
 
 def p_modificador_objeto_expresion_acceso(p): # AST_modificador_objeto_acceso
   '''
-  modificador_objeto_expresion_no_vacio : operador_acceso s nombre opt_modificador_asignable
+  modificador_objeto_expresion : operador_acceso s nombre opt_modificador_asignable
   '''
   punto = AST_sintaxis(p[1])
   s = concatenar(punto, p[2])       # [AST_skippeable]
@@ -1456,7 +1456,7 @@ def p_modificador_objeto_expresion_acceso(p): # AST_modificador_objeto_acceso
 
 def p_modificador_objeto_expresion_index(p): # AST_modificador_objeto_index | AST_tipo_lista
   '''
-  modificador_objeto_expresion_no_vacio : ABRE_CORCHETE s continuacion_abre_corchete
+  modificador_objeto_expresion : ABRE_CORCHETE s continuacion_abre_corchete
   '''
   abre = AST_sintaxis(p[1])   # AST_sintaxis
   s = concatenar(abre, p[2])  # [AST_skippeable]
@@ -1466,7 +1466,7 @@ def p_modificador_objeto_expresion_index(p): # AST_modificador_objeto_index | AS
 
 def p_modificador_objeto_comotipo(p): # AST_modificador_comotipo
   '''
-  modificador_objeto_expresion_no_vacio : comotipo
+  modificador_objeto_expresion : comotipo
   '''
   modificador = p[1]        # AST_modificador_comotipo
   p[0] = modificador
@@ -1763,7 +1763,7 @@ def p_opt_continuacion_expresion_o_parametros_parametros(p): # AST_parametros
 
 def p_opt_continuacion_expresion_o_parametros_decorador(p): # AST_decorador (que puede venir con una lista de AST_identificador como adicional)
   '''
-  opt_continuacion_expresion_o_parametros : decorador_identificador_tipo_no_vacio mas_identificadores
+  opt_continuacion_expresion_o_parametros : decorador_identificador_tipo mas_identificadores
   '''
   decorador = p[1]                        # AST_decorador_tipo
   rec = p[2]                              # [AST_identificador] | [AST_skippeable]
@@ -1775,13 +1775,13 @@ def p_opt_continuacion_expresion_o_parametros_decorador(p): # AST_decorador (que
 
 def p_opt_continuacion_expresion_o_parametros_otros(p): # AST_modificador
   '''
-  opt_continuacion_expresion_o_parametros : modificador_asignable_no_vacio
+  opt_continuacion_expresion_o_parametros : modificador_asignable
   '''
   p[0] = p[1]
 
 def p_opt_modificador_expresion_asignada(p): # AST_modificador_objeto | AST_argumentos | AST_cuerpo | AST_tipo_void | AST_modificador_operador | AST_modificador_comotipo | [AST_skippeable]
   '''
-  opt_modificador_expresion_asignada : modificador_expresion_asignada_no_vacio
+  opt_modificador_expresion_asignada : modificador_expresion_asignada
                                      | sf opt_modificador_expresion_asignada
                                      | vacio
   '''
@@ -1789,28 +1789,28 @@ def p_opt_modificador_expresion_asignada(p): # AST_modificador_objeto | AST_argu
 
 def p_modificador_expresion_asignada_acceso(p): # AST_modificador_objeto | AST_argumentos | AST_cuerpo | AST_tipo_void
   '''
-  modificador_expresion_asignada_no_vacio : modificador_objeto_comando_no_vacio
+  modificador_expresion_asignada : modificador_objeto_comando
   '''
   modificador_objeto = p[1] # AST_modificador_objeto
   p[0] = modificador_objeto
 
 def p_modificador_expresion_asignada_operador(p): # AST_modificador_operador
   '''
-  modificador_expresion_asignada_no_vacio : operador
+  modificador_expresion_asignada : operador
   '''
   modificador = p[1]        # AST_modificador_operador
   p[0] = modificador
 
 def p_modificador_expresion_asignada_comotipo(p): # AST_modificador_comotipo
   '''
-  modificador_expresion_asignada_no_vacio : comotipo
+  modificador_expresion_asignada : comotipo
   '''
   modificador = p[1]        # AST_modificador_comotipo
   p[0] = modificador
 
 def p_modificador_expresion_asignada_funcion(p): # AST_cuerpo | AST_tipo_void
   '''
-  modificador_expresion_asignada_no_vacio : FLECHA s cuerpo_abstraccion
+  modificador_expresion_asignada : FLECHA s cuerpo_abstraccion
   '''
   s = AST_sintaxis(p[1])  # AST_sintaxis
   s = concatenar(s, p[2]) # [AST_skippeable]
@@ -1820,7 +1820,7 @@ def p_modificador_expresion_asignada_funcion(p): # AST_cuerpo | AST_tipo_void
 
 def p_opt_modificador_objeto_comando(p): # AST_modificador_objeto | AST_tipo_lista | AST_argumentos | [AST_skippeable]
   '''
-  opt_modificador_objeto_comando : modificador_objeto_comando_no_vacio
+  opt_modificador_objeto_comando : modificador_objeto_comando
                                  | sf opt_modificador_objeto_comando
                                  | vacio
   '''
@@ -1828,7 +1828,7 @@ def p_opt_modificador_objeto_comando(p): # AST_modificador_objeto | AST_tipo_lis
 
 def p_modificador_objeto_comando_acceso(p): # AST_modificador_objeto_acceso
   '''
-  modificador_objeto_comando_no_vacio : operador_acceso s nombre opt_modificador_asignable
+  modificador_objeto_comando : operador_acceso s nombre opt_modificador_asignable
   '''
   punto = AST_sintaxis(p[1])
   s = concatenar(punto, p[2])       # [AST_skippeable]
@@ -1841,7 +1841,7 @@ def p_modificador_objeto_comando_acceso(p): # AST_modificador_objeto_acceso
 
 def p_modificador_objeto_comando_index(p): # AST_modificador_objeto_index | AST_tipo_lista
   '''
-  modificador_objeto_comando_no_vacio : ABRE_CORCHETE s continuacion_abre_corchete
+  modificador_objeto_comando : ABRE_CORCHETE s continuacion_abre_corchete
   '''
   abre = AST_sintaxis(p[1])   # AST_sintaxis
   s = concatenar(abre, p[2])  # [AST_skippeable]
@@ -1851,14 +1851,14 @@ def p_modificador_objeto_comando_index(p): # AST_modificador_objeto_index | AST_
 
 def p_modificador_objeto_comando_invocacion(p): # AST_argumentos
   '''
-  modificador_objeto_comando_no_vacio : invocacion
+  modificador_objeto_comando : invocacion
   '''
   invocacion = p[1]     # AST_argumentos
   p[0] = invocacion
 
 def p_modificador_objeto_comando_no_tipado_acceso(p): # AST_modificador_objeto_acceso
   '''
-  modificador_objeto_comando_no_tipado_no_vacio : operador_acceso s nombre opt_modificador_asignable_no_tipado
+  modificador_objeto_comando_no_tipado : operador_acceso s nombre opt_modificador_asignable_no_tipado
   '''
   punto = AST_sintaxis(p[1])
   s = concatenar(punto, p[2])       # [AST_skippeable]
@@ -1871,7 +1871,7 @@ def p_modificador_objeto_comando_no_tipado_acceso(p): # AST_modificador_objeto_a
 
 def p_modificador_objeto_comando_no_tipado_index(p): # AST_modificador_objeto_index | AST_tipo_lista
   '''
-  modificador_objeto_comando_no_tipado_no_vacio : ABRE_CORCHETE s continuacion_abre_corchete_no_tipada
+  modificador_objeto_comando_no_tipado : ABRE_CORCHETE s continuacion_abre_corchete_no_tipada
   '''
   abre = AST_sintaxis(p[1])   # AST_sintaxis
   s = concatenar(abre, p[2])  # [AST_skippeable]
@@ -1881,7 +1881,7 @@ def p_modificador_objeto_comando_no_tipado_index(p): # AST_modificador_objeto_in
 
 def p_modificador_objeto_comando_no_tipado_invocacion(p): # AST_argumentos
   '''
-  modificador_objeto_comando_no_tipado_no_vacio : invocacion_no_tipada
+  modificador_objeto_comando_no_tipado : invocacion_no_tipada
   '''
   invocacion = p[1]     # AST_argumentos
   p[0] = invocacion
@@ -1917,7 +1917,7 @@ def p_cuerpo_abstraccion_cuerpo(p): # AST_cuerpo
 
 def p_modificador_objeto_expresion_no_tipada_acceso(p): # AST_modificador_objeto_acceso
   '''
-  modificador_objeto_expresion_no_tipada_no_vacio : operador_acceso s nombre opt_modificador_asignable_no_tipado
+  modificador_objeto_expresion_no_tipada : operador_acceso s nombre opt_modificador_asignable_no_tipado
   '''
   punto = AST_sintaxis(p[1])
   s = concatenar(punto, p[2])       # [AST_skippeable]
@@ -1930,7 +1930,7 @@ def p_modificador_objeto_expresion_no_tipada_acceso(p): # AST_modificador_objeto
 
 def p_modificador_objeto_expresion_no_tipada_index(p): # AST_modificador_objeto_index | AST_tipo_lista
   '''
-  modificador_objeto_expresion_no_tipada_no_vacio : ABRE_CORCHETE s continuacion_abre_corchete_no_tipada
+  modificador_objeto_expresion_no_tipada : ABRE_CORCHETE s continuacion_abre_corchete_no_tipada
   '''
   abre = AST_sintaxis(p[1])   # AST_sintaxis
   s = concatenar(abre, p[2])  # [AST_skippeable]
@@ -1963,7 +1963,7 @@ def p_continuacion_abre_corchete_no_tipada_tipo(p): # AST_tipo_lista
 
 def p_modificador_objeto_no_tipada_comotipo(p): # AST_modificador_comotipo
   '''
-  modificador_objeto_expresion_no_tipada_no_vacio : comotipo
+  modificador_objeto_expresion_no_tipada : comotipo
   '''
   modificador = p[1]        # AST_modificador_comotipo
   p[0] = modificador
@@ -2186,7 +2186,7 @@ def p_expresion_no_tipada_otros(p):
 
 def p_opt_modificador_expresion(p): # AST_modificador_objeto | AST_argumentos | AST_modificador_operador | AST_cuerpo | AST_tipo_void | [AST_skippeable]
   '''
-  opt_modificador_expresion : modificador_expresion_no_vacio
+  opt_modificador_expresion : modificador_expresion
                             | sf opt_modificador_expresion
                             | vacio
   '''
@@ -2194,28 +2194,28 @@ def p_opt_modificador_expresion(p): # AST_modificador_objeto | AST_argumentos | 
 
 def p_modificador_expresion_acceso(p): # AST_modificador_objeto
   '''
-  modificador_expresion_no_vacio : modificador_objeto_expresion_no_vacio
+  modificador_expresion : modificador_objeto_expresion
   '''
   modificador_objeto = p[1] # AST_modificador_objeto
   p[0] = modificador_objeto
 
 def p_modificador_expresion_invocacion(p): # AST_argumentos
   '''
-  modificador_expresion_no_vacio : invocacion
+  modificador_expresion : invocacion
   '''
   modificador = p[1]
   p[0] = modificador
 
 def p_modificador_expresion_operador_binario(p): # AST_modificador_operador
   '''
-  modificador_expresion_no_vacio : operador
+  modificador_expresion : operador
   '''
   modificador = p[1]
   p[0] = modificador
 
 def p_modificador_expresion_funcion(p): # AST_cuerpo | AST_tipo_void
   '''
-  modificador_expresion_no_vacio : FLECHA s cuerpo_abstraccion
+  modificador_expresion : FLECHA s cuerpo_abstraccion
   '''
   s = AST_sintaxis(p[1])  # AST_sintaxis
   s = concatenar(s, p[2]) # [AST_skippeable]
@@ -2225,7 +2225,7 @@ def p_modificador_expresion_funcion(p): # AST_cuerpo | AST_tipo_void
 
 def p_opt_modificador_expresion_no_tipada(p): # AST_modificador_objeto | AST_argumentos | AST_modificador_operador | AST_cuerpo | AST_tipo_void | [AST_skippeable]
   '''
-  opt_modificador_expresion_no_tipada : modificador_expresion_no_tipada_no_vacio
+  opt_modificador_expresion_no_tipada : modificador_expresion_no_tipada
                                       | sf opt_modificador_expresion_no_tipada
                                       | vacio
   '''
@@ -2233,28 +2233,28 @@ def p_opt_modificador_expresion_no_tipada(p): # AST_modificador_objeto | AST_arg
 
 def p_modificador_expresion_no_tipada_acceso(p): # AST_modificador_objeto
   '''
-  modificador_expresion_no_tipada_no_vacio : modificador_objeto_expresion_no_tipada_no_vacio
+  modificador_expresion_no_tipada : modificador_objeto_expresion_no_tipada
   '''
   modificador_objeto = p[1] # AST_modificador_objeto
   p[0] = modificador_objeto
 
 def p_modificador_expresion_no_tipada_invocacion(p): # AST_argumentos
   '''
-  modificador_expresion_no_tipada_no_vacio : invocacion_no_tipada
+  modificador_expresion_no_tipada : invocacion_no_tipada
   '''
   modificador = p[1]
   p[0] = modificador
 
 def p_modificador_expresion_no_tipada_operador_binario(p): # AST_modificador_operador
   '''
-  modificador_expresion_no_tipada_no_vacio : operador_no_tipado
+  modificador_expresion_no_tipada : operador_no_tipado
   '''
   modificador = p[1]
   p[0] = modificador
 
 def p_modificador_expresion_no_tipada_funcion(p): # AST_cuerpo | AST_tipo_void
   '''
-  modificador_expresion_no_tipada_no_vacio : FLECHA s cuerpo_abstraccion
+  modificador_expresion_no_tipada : FLECHA s cuerpo_abstraccion
   '''
   s = AST_sintaxis(p[1])  # AST_sintaxis
   s = concatenar(s, p[2]) # [AST_skippeable]
@@ -2440,7 +2440,7 @@ def p_fin_argumentos(p): # AST_argumentos
 
 def p_opt_modificador_invocacion(p): # AST_argumentos | AST_modificador_operador | AST_modificador_objeto | AST_modificador_comotipo | [AST_skippeable] | [AST_skippeable]
   '''
-  opt_modificador_invocacion : modificador_invocacion_no_vacio
+  opt_modificador_invocacion : modificador_invocacion
                              | sf opt_modificador_invocacion
                              | vacio
   '''
@@ -2448,7 +2448,7 @@ def p_opt_modificador_invocacion(p): # AST_argumentos | AST_modificador_operador
 
 def p_modificador_invocacion_expresion(p): # AST_argumentos | AST_modificador_operador | AST_modificador_objeto | AST_modificador_comotipo | AST_cuerpo | AST_tipo_void | [AST_skippeable]
   '''
-  modificador_invocacion_no_vacio : modificador_expresion_no_vacio
+  modificador_invocacion : modificador_expresion
   '''
   modificador_objeto = p[1]
   p[0] = modificador_objeto
@@ -2509,7 +2509,7 @@ def p_fin_argumentos_no_tipados(p): # AST_argumentos
 
 def p_opt_modificador_invocacion_no_tipada(p): # AST_argumentos | AST_modificador_operador | AST_modificador_objeto | AST_modificador_comotipo | [AST_skippeable] | [AST_skippeable]
   '''
-  opt_modificador_invocacion_no_tipada : modificador_invocacion_no_tipada_no_vacio
+  opt_modificador_invocacion_no_tipada : modificador_invocacion_no_tipada
                                        | sf opt_modificador_invocacion_no_tipada
                                        | vacio
   '''
@@ -2517,7 +2517,7 @@ def p_opt_modificador_invocacion_no_tipada(p): # AST_argumentos | AST_modificado
 
 def p_modificador_invocacion_no_tipada_expresion(p): # AST_argumentos | AST_modificador_operador | AST_modificador_objeto | AST_modificador_comotipo | AST_cuerpo | AST_tipo_void | [AST_skippeable]
   '''
-  modificador_invocacion_no_tipada_no_vacio : modificador_expresion_no_tipada_no_vacio
+  modificador_invocacion_no_tipada : modificador_expresion_no_tipada
   '''
   modificador_objeto = p[1]
   p[0] = modificador_objeto
@@ -2769,7 +2769,7 @@ def p_declaracion_combinador(p): # AST_combinador
 
 def p_combinador(p): # AST_combinador
   '''
-  combinador : selector_combinador_no_vacio cuerpo_combinador
+  combinador : selector_combinador cuerpo_combinador
   '''
   combinador = p[1] # AST_combinador
   cuerpo = p[2]     # AST_cuerpo | [AST_skippeable]
@@ -2805,7 +2805,7 @@ def p_opt_cuerpo_cuerpo(p): # AST_cuerpo
 
 def p_selector_combinador_simple_1(p): # AST_combinador
   '''
-  selector_combinador_no_vacio : COMBINADOR1 s ABRE_PAREN programa CIERRA_PAREN s
+  selector_combinador : COMBINADOR1 s ABRE_PAREN programa CIERRA_PAREN s
   '''
   clase = p[1]                  # string
   s1 = concatenar(clase, p[2])
@@ -2822,7 +2822,7 @@ def p_selector_combinador_simple_1(p): # AST_combinador
 
 def p_selector_combinador_simple_2(p): # AST_combinador
   '''
-  selector_combinador_no_vacio : COMBINADOR2 s
+  selector_combinador : COMBINADOR2 s
   '''
   clase = p[1]                  # string
   s = concatenar(clase, p[2])   # [AST_skippeable]
@@ -2832,7 +2832,7 @@ def p_selector_combinador_simple_2(p): # AST_combinador
 
 def p_selector_combinador_else(p): # AST_combinador
   '''
-  selector_combinador_no_vacio : ELSE opt_if
+  selector_combinador : ELSE opt_if
   '''
   clase = p[1]                  # string
   combinador = p[2]             # AST_combinador | [AST_skippeable]
@@ -2844,7 +2844,7 @@ def p_selector_combinador_else(p): # AST_combinador
 
 def p_opt_if(p): # AST_combinador | [AST_skippeable]
   '''
-  opt_if : selector_combinador_no_vacio
+  opt_if : selector_combinador
          | sf opt_if
          | vacio
   '''
@@ -3072,7 +3072,7 @@ def p_opt_modificador_identificador(p): # AST_modificador_asignacion | [AST_skip
   '''
   p[0] = modificador_opcional(p)
 
-def p_modificador_identificador_no_vacio(p): # AST_modificador_asignacion
+def p_modificador_identificador_asignacion(p): # AST_modificador_asignacion
   '''
   modificador_identificador : asignacion
   '''
@@ -3158,7 +3158,7 @@ def p_continuacion_type_en_declaracion_sigue_id(p): # AST_TMP ( nombre ) ; ( tip
 
 def p_continuacion_type_en_declaracion_sigue_decorador(p): # AST_TMP ( decorador )
   '''
-  continuacion_type_en_declaracion : decorador_declaracion_clase_no_vacio opt_modificador_dentro_de_clase
+  continuacion_type_en_declaracion : decorador_declaracion_clase opt_modificador_dentro_de_clase
   '''
   decorador = p[1]
   opt_modificador_adicional = p[2]
@@ -3167,7 +3167,7 @@ def p_continuacion_type_en_declaracion_sigue_decorador(p): # AST_TMP ( decorador
 
 def p_continuacion_type_en_declaracion_sigue_modificador(p): # AST_TMP ( modificador )
   '''
-  continuacion_type_en_declaracion : modificador_dentro_de_clase_no_vacio
+  continuacion_type_en_declaracion : modificador_dentro_de_clase
   '''
   modificador = p[1]
   p[0] = AST_TMP("modificador", modificador)
@@ -3246,7 +3246,7 @@ def p_continuacion_nombre_en_declaracion_sigue_asignacion(p): # AST_TMP ( tipo )
 
 def p_continuacion_nombre_en_declaracion_sigue_id_clase(p): # AST_TMP ( modificador )
   '''
-  continuacion_nombre_en_declaracion : modificador_id_clase_no_vacio s ASIGNACION1 s tipo
+  continuacion_nombre_en_declaracion : modificador_id_clase s ASIGNACION1 s tipo
   '''
   modificador = p[1]
   s = AST_sintaxis(p[3])
@@ -3420,7 +3420,7 @@ def p_mas_identificadores_o_modificadores_proximo(p): # AST_identificador | AST_
 
 def p_opt_modificador_dentro_de_clase(p): # AST_modificador_objeto | AST_expresion_funcion | [AST_skippeable]
   '''
-  opt_modificador_dentro_de_clase : modificador_dentro_de_clase_no_vacio
+  opt_modificador_dentro_de_clase : modificador_dentro_de_clase
                                   | sf opt_modificador_dentro_de_clase
                                   | vacio
   '''
@@ -3428,14 +3428,14 @@ def p_opt_modificador_dentro_de_clase(p): # AST_modificador_objeto | AST_expresi
 
 def p_modificador_dentro_de_clase_modificador_objeto(p): # AST_modificador_objeto
   '''
-  modificador_dentro_de_clase_no_vacio : modificador_objeto_expresion_no_vacio
+  modificador_dentro_de_clase : modificador_objeto_expresion
   '''
   modificador = p[1]       # AST_modificador_objeto
   p[0] = modificador
 
 def p_modificador_dentro_de_clase_funcion(p): # AST_expresion_funcion
   '''
-  modificador_dentro_de_clase_no_vacio : definicion_funcion
+  modificador_dentro_de_clase : definicion_funcion
   '''
   definicion = p[1]     # AST_expresion_funcion | AST_invocacion
   # Si la estoy declarando, no debería haber una invocación
@@ -3446,7 +3446,7 @@ def p_modificador_dentro_de_clase_funcion(p): # AST_expresion_funcion
 
 def p_opt_modificador_clase(p): # AST_modificador_declaracion | [AST_skippeable]
   '''
-  opt_modificador_clase : modificador_clase_no_vacio
+  opt_modificador_clase : modificador_clase
                         | sf opt_modificador_clase
                         | vacio
   '''
@@ -3454,7 +3454,7 @@ def p_opt_modificador_clase(p): # AST_modificador_declaracion | [AST_skippeable]
 
 def p_modificador_clase_implements(p): # AST_modificador_declaracion_implementacion
   '''
-  modificador_clase_no_vacio : IMPLEMENTS s id_clases_coma opt_modificador_clase
+  modificador_clase : IMPLEMENTS s id_clases_coma opt_modificador_clase
   '''
   implements = AST_sintaxis(p[1])   # AST_sintaxis
   s = concatenar(implements, p[2])  # [AST_skippeable]
@@ -3467,7 +3467,7 @@ def p_modificador_clase_implements(p): # AST_modificador_declaracion_implementac
 
 def p_modificador_clase_extends(p): # AST_modificador_declaracion_extension
   '''
-  modificador_clase_no_vacio : EXTENDS s id_clases_coma opt_modificador_clase
+  modificador_clase : EXTENDS s id_clases_coma opt_modificador_clase
   '''
   s = AST_sintaxis(p[1])            # AST_sintaxis
   s = concatenar(s, p[2])           # [AST_skippeable]
@@ -3570,7 +3570,7 @@ def p_id_clase(p): # AST_tipo_base | AST_tipo_compuesto
 
 def p_opt_modificador_id_clase(p): # AST_tipo_tupla | [AST_skippeable]
   '''
-  opt_modificador_id_clase : modificador_id_clase_no_vacio
+  opt_modificador_id_clase : modificador_id_clase
                            | sf opt_modificador_id_clase
                            | vacio
   '''
@@ -3578,7 +3578,7 @@ def p_opt_modificador_id_clase(p): # AST_tipo_tupla | [AST_skippeable]
 
 def p_modificador_id_clase_tupla(p): # AST_tipo_tupla
   '''
-  modificador_id_clase_no_vacio : MENOR s tipos MAYOR opt_modificador_tipo
+  modificador_id_clase : MENOR s tipos MAYOR opt_modificador_tipo
   '''
   abre = AST_sintaxis(p[1])       # AST_sintaxis
   abre = concatenar(abre, p[2])   # [AST_skippeable]
