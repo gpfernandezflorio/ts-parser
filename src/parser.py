@@ -106,8 +106,8 @@ def t_IDENTIFICADOR(t):
   t.type = reserved_map.get(t.value, "IDENTIFICADOR")
   return t
 t_NUMERO = r'(\d*\.\d+)|(0x)?\d+'
-#            [    comillas dobles   ] [     comillas simples      ] [       diagonales (re)       ] [backtick]
-t_STRING = r'("([^\\"]|\\"|\\[^"])*")|(\'([^\\\']|\\\'|\\[^\'])*\')|/[^/\*\ ]([^\\/\n\r]|\\\\/)*/g?i?|(`[^`$]*`)'
+#            [    comillas dobles   ] [     comillas simples      ] [                    diagonales (re)                 ] [backtick]
+t_STRING = r'("([^\\"]|\\"|\\[^"])*")|(\'([^\\\']|\\\'|\\[^\'])*\')|/[^/\*\ ]([^\\/\n\r]|\\\\/|\\(\(|\)|s|d|w|x|\.))*/g?i?|(`[^`$]*`)'
 t_COMENTARIO_UL = r'//[^\n\r]*'
 def t_COMENTARIO_ML(t):
   r'/\*([^\*]|\*[^/])*\*/'
@@ -357,7 +357,7 @@ def p_declaracion_funcion(p): # AST_expresion_funcion | AST_declaracion_funcion 
   s = concatenar(declarador, p[2])      # [AST_skippeable]
   rec = p[3]                            # AST_funcion_incompleta | AST_declaracion_funcion | AST_invocacion
   if type(rec) is AST_funcion_incompleta:
-    rec = AST_expresion_funcion(rec)
+    rec = crearExpresionFuncion(rec)
   rec.apertura(s)
   p[0] = rec
 
@@ -398,7 +398,8 @@ def p_definicion_funcion(p): # AST_funcion_incompleta | AST_invocacion
     expresion.agregar_decorador(opt_tipo)
   else:
     parametros.clausura(opt_tipo)
-  p[0] = aplicarModificador(expresion, modificador)
+  expresion.modificador_adicional(modificador)
+  p[0] = expresion
 
 def p_opt_modificador_funcion_con_skip(p): # AST_argumentos | [AST_skippeable]  {skip, comentario}
   '''
@@ -427,11 +428,18 @@ def p_modificador_funcion_no_vacio(p): # [AST_skippeable]                      {
   '''
   p[0] = p[1]
 
-def p_modificador_funcion_modificador_expresion(p): # AST_modificador
+def p_modificador_funcion_invocacion(p): # AST_argumentos
   '''
-  modificador_funcion_no_vacio : modificador_expresion_no_vacio
+  modificador_funcion_no_vacio : invocacion
   '''
-  modificador_expresion = p[1]  # AST_modificador
+  modificador_expresion = p[1]  # AST_argumentos
+  p[0] = modificador_expresion
+
+def p_modificador_funcion_modificador_objeto(p): # AST_modificador_objeto
+  '''
+  modificador_funcion_no_vacio : modificador_objeto_expresion_no_vacio
+  '''
+  modificador_expresion = p[1]  # AST_modificador_objeto
   p[0] = modificador_expresion
 
 def p_parametros(p): # AST_parametros
@@ -637,6 +645,7 @@ def p_identificadores_no_vacio(p): # [AST_identificador]
 def p_identificadores_con_prefijo(p): # [AST_identificador]
   '''
   identificadores_no_vacio : operador_prefijo s identificadores_no_vacio
+                           | COMA s identificadores_no_vacio
   '''
   s = AST_sintaxis(p[1])    # AST_sintaxis
   s = concatenar(s, p[2])   # [AST_skippeable]
@@ -1081,6 +1090,12 @@ def p_tipo_void(p): # AST_tipo_base
   tipo = AST_tipo_void()
   tipo.apertura(s)
   p[0] = tipo
+
+def p_tipo_suma(p): # AST_tipo_suma
+  '''
+  tipo_sin_id : modificador_tipo_pipe
+  '''
+  p[0] = p[1]
 
 def p_tipo_o_parametros_tipo(p): # AST_tipo (entre paréntesis)
   '''
@@ -1727,7 +1742,7 @@ def p_expresion_asignada_funcion(p): # AST_expresion_funcion | AST_invocacion
   rec.apertura(s)
   rec.clausura(cierre)
   if type(rec) is AST_funcion_incompleta:
-    rec = AST_expresion_funcion(rec)
+    rec = crearExpresionFuncion(rec)
   p[0] = rec
 
 def p_expresion_asignada_new(p): # AST_expresion
@@ -2257,7 +2272,7 @@ def p_expresion_function(p): # AST_expresion_funcion | AST_invocacion
   rec = p[3]                            # AST_funcion_incompleta | AST_invocacion
   rec.apertura(s)
   if type(rec) is AST_funcion_incompleta:
-    rec = AST_expresion_funcion(rec)
+    rec = crearExpresionFuncion(rec)
   p[0] = rec
 
 def p_expresion_suelta(p): # ...
@@ -2595,11 +2610,20 @@ def p_operador_binario(p): # string
                    | MENOS
                    | MENOR
                    | MAYOR
+                   | shift
+                   | AND
                    | PIPE
                    | IN
   '''
   operador = p[1]
   p[0] = operador
+
+def p_shift(p): # string
+  '''
+  shift : MENOR MENOR
+        | MAYOR MAYOR
+  '''
+  p[0] = p[1] + p[2]
 
 def p_operador_operador_posfijo(p): # AST_modificador_operador_posfijo
   '''
@@ -2935,12 +2959,6 @@ def p_modificador_objeto_expresion_asignacion(p): # AST_modificador_asignacion
   '''
   p[0] = p[1]
 
-def p_modificador_objeto_expresion_cierre(p): # [AST_skippeable]
-  '''
-  modificador_objeto_expresion : cierre
-  '''
-  p[0] = p[1]
-
 def p_modificador_objeto_expresion_no_vacio(p): # [AST_skippeable] | AST_argumentos | AST_modificador_objeto
   '''
   modificador_objeto_expresion : modificador_objeto_expresion_no_vacio
@@ -3042,6 +3060,7 @@ def p_campo(p): # AST_campo
 def p_campo_con_valor(p): # AST_expresion
   '''
   opt_valor_campo : DOS_PUNTOS s expresion
+                  | ASIGNACION1 s expresion
   '''
   s = AST_sintaxis(p[1])    # AST_sintaxis
   s = concatenar(s, p[2])   # [AST_skippeable]
@@ -3066,7 +3085,7 @@ def p_clave_campo_identificador_con_prefijo(p): # AST_identificador | AST_declar
   if isinstance(opt_definicion, AST_invocacion):
     pass # ¿Esto sería un error?
   elif isinstance(opt_definicion, AST_funcion_incompleta):
-    clave = AST_declaracion_funcion(clave, opt_definicion)
+    clave = crearDeclaracionFuncion(clave, opt_definicion)
   else:
     clave.clausura(opt_definicion)
   p[0] = clave
@@ -3080,7 +3099,7 @@ def p_clave_campo_identificador(p): # AST_identificador | AST_declaracion_funcio
   if isinstance(opt_definicion, AST_invocacion):
     pass # ¿Esto sería un error?
   elif isinstance(opt_definicion, AST_funcion_incompleta):
-    clave = AST_declaracion_funcion(clave, opt_definicion)
+    clave = crearDeclaracionFuncion(clave, opt_definicion)
   else:
     clave.clausura(opt_definicion)
   p[0] = clave
@@ -3302,10 +3321,10 @@ def p_declaracion_prefijo(p): # AST_operador
   expresion.apertura(s)
   p[0] = expresion
 
-# TODO: Agregar el OPERADOR_INFIJO además del OPERADOR_PREFIJO y el MENOS
 def p_operador_prefijo(p): # string
   '''
   operador_prefijo : OPERADOR_PREFIJO
+                   | OPERADOR_INFIJO
                    | EXCLAMACION
                    | MENOS
   '''
@@ -3518,29 +3537,34 @@ def p_declaracion_de_tipo(p): # AST_declaracion_tipo | AST_identificador | AST_i
   '''
   declaracion_de_tipo : TYPE s continuacion_type_en_declaracion
   '''
-  c = p[3]                                                    # AST_TMP ( nombre | decorador | modificador | operador )
-  if c.identificador == "nombre":
+  c = p[3]                                                    # AST_TMP ( vacio | nombre | decorador | modificador | operador )
+  if c.identificador == "vacio": # Es una variable llamada 'type'
+    identificador = AST_identificador(p[1])
+    identificador.clausura(p[2])
+    identificador.clausura(c.contenido)
+    p[0] = identificador
+  elif c.identificador == "nombre": # Sigue otro nombre así que estoy declarando un tipo (type IDENTIFICADOR = ...)
     nombre = c.contenido
     rec = c.rec
-    if rec.identificador == "tipo":
+    if rec.identificador == "tipo": # El nombre del tipo es 'nombre'
       tipo = rec.contenido
-      s = AST_sintaxis(p[1])          # AST_sintaxis
-      s = concatenar(s, p[2])         # [AST_skippeable]
+      s = AST_sintaxis(p[1])      # AST_sintaxis
+      s = concatenar(s, p[2])     # [AST_skippeable]
       tipo = AST_declaracion_tipo(nombre, tipo)
       tipo.apertura(s)
       p[0] = tipo
-    elif rec.identificador == "modificador":
+    elif rec.identificador == "modificador": # El nombre del tipo es 'nombre' modificado (e.g. IDENTIFICADOR<...>)
       modificador = rec.contenido
       tipo = rec.rec
-      s = AST_sintaxis(p[1])            # AST_sintaxis
-      s = concatenar(s, p[2])           # [AST_skippeable]
+      s = AST_sintaxis(p[1])      # AST_sintaxis
+      s = concatenar(s, p[2])     # [AST_skippeable]
       nombre = AST_tipo_base(nombre)
       nombre = aplicarModificador(nombre, modificador)
       tipo = AST_declaracion_tipo(nombre, tipo)
       tipo.apertura(s)
       p[0] = tipo
-    elif rec.identificador == "mas_ids":
-      mas_ids = rec.contenido           # AST_identificador | AST_identificadores
+    elif rec.identificador == "mas_ids": # El nombre del tipo viene después y 'nombre' es otro modificador (e.g. public, static, etc.)
+      mas_ids = rec.contenido     # AST_identificador | AST_identificadores
       identificador = AST_identificador(p[1])
       identificador.clausura(p[2])
       mas_ids.agregar_modificador_pre(identificador)
@@ -3562,6 +3586,12 @@ def p_declaracion_de_tipo(p): # AST_declaracion_tipo | AST_identificador | AST_i
     identificador = AST_identificador(p[1])
     identificador.clausura(p[2])
     p[0] = aplicarModificador(identificador, operador)
+
+def p_continuacion_type_en_declaracion_vacio(p): # AST_TMP ( vacio )
+  '''
+  continuacion_type_en_declaracion : vacio
+  '''
+  p[0] = AST_TMP("vacio", p[1])
 
 def p_continuacion_type_en_declaracion_sigue_id(p): # AST_TMP ( nombre ) ; ( tipo | modificador | mas_ids )
   '''
@@ -4341,7 +4371,7 @@ class AST_invocacion(AST_expresion):
   def __init__(self, funcion, argumentos):
     super().__init__()
     if type(funcion) is AST_funcion_incompleta:
-      self.funcion = AST_expresion_funcion(funcion) # AST_identificador | AST_expresion_funcion
+      self.funcion = crearExpresionFuncion(funcion) # AST_identificador | AST_expresion_funcion
     else:
       self.funcion = funcion                        # AST_identificador | AST_expresion_funcion
     self.argumentos = argumentos                    # AST_argumentos
@@ -5025,7 +5055,7 @@ def aplicarModificador(nodo, mod):
     resultado = AST_invocacion(nodo, mod)
   elif isinstance(mod, AST_funcion_incompleta):
     # DECLARACIÓN (dentro de clase): {nodo} ( {mod.parametros} ) { {mod.cuerpo} }
-    resultado = AST_declaracion_funcion(nodo, mod)
+    resultado = crearDeclaracionFuncion(nodo, mod)
   elif isinstance(mod, AST_modificador_variable_adicional):
     # DECLARACIÓN CON MÁS VARIABLES: {nodo} , {mod}
     declaracion = mod.declaracion
@@ -5064,7 +5094,7 @@ def aplicarModificador(nodo, mod):
   elif isinstance(mod, AST_cuerpo):
     # FUNCIÓN ANÓNIMA: {nodo} => {mod}
     parametros = parametrosDesdeNodo(nodo)
-    resultado = AST_expresion_funcion(AST_funcion_incompleta(parametros, mod))
+    resultado = crearExpresionFuncion(AST_funcion_incompleta(parametros, mod))
   elif isinstance(mod, AST_iterador):
     # ITERACIÓN: {nodo} in {mod}
     mod.expresion.imitarEspacios(mod)
@@ -5126,6 +5156,22 @@ def tipoDesdeNodo(nodo):
     # ERROR
     fallaDebug()
   return tipo
+
+def crearDeclaracionFuncion(nombre, funcion_incompleta):
+  adicionales = funcion_incompleta.adicional
+  funcion_incompleta.adicional = []
+  declaracion = AST_declaracion_funcion(nombre, funcion_incompleta)
+  for ad in adicionales:
+    declaracion = aplicarModificador(declaracion, ad)
+  return declaracion
+
+def crearExpresionFuncion(funcion_incompleta):
+  adicionales = funcion_incompleta.adicional
+  funcion_incompleta.adicional = []
+  expresion = AST_expresion_funcion(funcion_incompleta)
+  for ad in adicionales:
+    expresion = aplicarModificador(expresion, ad)
+  return expresion
 
 def cantidad(x):
   if type(x) == type([]):
