@@ -21,6 +21,7 @@ from parser import AST_campo
 from parser import AST_return as ret
 from parser import AST_combinador
 from parser import AST_cuerpo
+from parser import AST_parametros
 
 def id(s,i,c,f):
   return t('IDENTIFICADOR',s,i,c,f)
@@ -32,10 +33,10 @@ def invocacion(funcion, argumentos=[]):
   return AST_invocacion(funcion, argumentos)
 
 def funcion(nombre, parametros, cuerpo):
-  return AST_declaracion_funcion(nombre, AST_funcion_incompleta(parametros, cuerpo))
+  return AST_declaracion_funcion(nombre, AST_funcion_incompleta(AST_parametros(parametros), cuerpo))
 
 def abs(parametros=[], cuerpo=None):
-  return AST_expresion_funcion(AST_funcion_incompleta(parametros, AST_cuerpo(cuerpo)))
+  return AST_expresion_funcion(AST_funcion_incompleta(AST_parametros(parametros), AST_cuerpo(cuerpo)))
 
 def acceso(objeto, campo):
   return AST_expresion_acceso(objeto, AST_modificador_objeto_acceso(identificador(campo)))
