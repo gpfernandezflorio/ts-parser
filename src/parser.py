@@ -19,6 +19,7 @@ tokens = (
   'IDENTIFICADOR',
   'NUMERO',
   'STRING',
+  'RE',
   'COMENTARIO_UL',
   'COMENTARIO_ML',
   'ASIGNACION1',
@@ -106,8 +107,9 @@ def t_IDENTIFICADOR(t):
   t.type = reserved_map.get(t.value, "IDENTIFICADOR")
   return t
 t_NUMERO = r'(\d*\.\d+)|(0x)?\d+'
-#            [    comillas dobles   ] [     comillas simples      ] [                       diagonales (re)                 ] [backtick]
-t_STRING = r'("([^\\"]|\\"|\\[^"])*")|(\'([^\\\']|\\\'|\\[^\'])*\')|/[^/\*\ ]([^\\/\n\r]|\\\\/|\\(\(|\)|s|d|w|x|\.|\d))*/g?i?|(`[^`$]*`)'
+#            [    comillas dobles   ] [     comillas simples      ] [backtick]
+t_STRING = r'("([^\\"]|\\"|\\[^"])*")|(\'([^\\\']|\\\'|\\[^\'])*\')|(`[^`$]*`)'
+t_RE = r'(/\ /|/[^/\*\ ]([^\\/\n\r]|\\/|\\\\/|\\(\(|\)|[a-z]|\.|\d))*/)g?(i|m)?'
 t_COMENTARIO_UL = r'//[^\n\r]*'
 def t_COMENTARIO_ML(t):
   r'/\*([^\*]|\*[^/])*\*/'
@@ -721,6 +723,7 @@ def p_nombre_no_type(p): # string
 def p_nombre(p): # string
   '''
   nombre : TYPE
+         | DECL_CLASS
          | nombre_no_type
   '''
   p[0] = p[1]
@@ -1179,10 +1182,9 @@ def p_expresion_asignada_con_pre(p): # AST_expresion
 
 def p_expresion_asignada_literal(p): # AST_expresion_literal | # AST_expresion (_invocacion, _acceso, _index, ...)
   '''
-  expresion_asignada_sin_pre : NUMERO opt_modificador_expresion_asignada
-                             | STRING opt_modificador_expresion_asignada
+  expresion_asignada_sin_pre : literal opt_modificador_expresion_asignada
   '''
-  literal = AST_expresion_literal(p[1]) # AST_expresion_literal
+  literal = p[1]                        # AST_expresion_literal
   modificador_expresion = p[2]          # AST_cuerpo | AST_tipo_void | AST_argumentos | AST_expresion | AST_modificador_objeto | [AST_skippeable]
   p[0] = aplicarModificador(literal, modificador_expresion)
 
@@ -1647,8 +1649,16 @@ def p_expresion_suelta_no_tipada_con_modificador(p): # AST_expresion
 
 def p_expresion_literal(p): # AST_expresion_literal
   '''
-  expresion_atomo : NUMERO
-                  | STRING
+  expresion_atomo : literal
+  '''
+  literal =p[1]
+  p[0] = literal
+
+def p_literal(p): # AST_expresion_literal
+  '''
+  literal : NUMERO
+          | STRING
+          | RE
   '''
   literal = AST_expresion_literal(p[1]) # AST_expresion_literal
   p[0] = literal
@@ -2530,12 +2540,13 @@ def p_declaracion_de_tipo(p): # AST_declaracion_tipo | AST_identificador | AST_i
   '''
   declaracion_de_tipo : TYPE s continuacion_type_en_declaracion
   '''
+  resultado = None
   c = p[3]                                                    # AST_TMP ( vacio | nombre | decorador | modificador | operador )
   if c.identificador == "vacio": # Es una variable llamada 'type'
     identificador = AST_identificador(p[1])
     identificador.clausura(p[2])
     identificador.clausura(c.contenido)
-    p[0] = identificador
+    resultado = identificador
   elif c.identificador == "nombre": # Sigue otro nombre así que estoy declarando un tipo (type IDENTIFICADOR = ...)
     nombre = c.contenido
     rec = c.rec
@@ -2545,7 +2556,7 @@ def p_declaracion_de_tipo(p): # AST_declaracion_tipo | AST_identificador | AST_i
       s = concatenar(s, p[2])     # [AST_skippeable]
       tipo = AST_declaracion_tipo(nombre, tipo)
       tipo.apertura(s)
-      p[0] = tipo
+      resultado = tipo
     elif rec.identificador == "modificador": # El nombre del tipo es 'nombre' modificado (e.g. IDENTIFICADOR<...>)
       modificador = rec.contenido
       tipo = rec.rec
@@ -2555,7 +2566,7 @@ def p_declaracion_de_tipo(p): # AST_declaracion_tipo | AST_identificador | AST_i
       nombre = aplicarModificador(nombre, modificador)
       tipo = AST_declaracion_tipo(nombre, tipo)
       tipo.apertura(s)
-      p[0] = tipo
+      resultado = tipo
     elif rec.identificador == "mas_ids": # El nombre del tipo viene después y 'nombre' es otro modificador (e.g. public, static, etc.)
       mas_ids = rec.contenido     # AST_identificador | AST_identificadores
       identificador = AST_identificador(p[1])
@@ -2563,22 +2574,25 @@ def p_declaracion_de_tipo(p): # AST_declaracion_tipo | AST_identificador | AST_i
       mas_ids.agregar_modificador_pre(identificador)
       for m in rec.rec:
         mas_ids = aplicarModificador(mas_ids, m)
-      p[0] = mas_ids
+      resultado = mas_ids
   elif c.identificador == "decorador":
     decorador = c.contenido
     identificador = AST_identificador(p[1])
     identificador.clausura(p[2])
-    p[0] = aplicarModificador(identificador, decorador)
+    resultado = aplicarModificador(identificador, decorador)
   elif c.identificador == "modificador":
     modificador = c.contenido
     identificador = AST_identificador(p[1])
     identificador.clausura(p[2])
-    p[0] = aplicarModificador(identificador, modificador)
+    resultado = aplicarModificador(identificador, modificador)
   elif c.identificador == "operador":
     operador = c.contenido
     identificador = AST_identificador(p[1])
     identificador.clausura(p[2])
-    p[0] = aplicarModificador(identificador, operador)
+    resultado = aplicarModificador(identificador, operador)
+  else:
+    fallaDebug()
+  p[0] = resultado
 
 def p_continuacion_type_en_declaracion_vacio(p): # AST_TMP ( vacio )
   '''
@@ -2713,18 +2727,47 @@ def p_declaracion_clase(p): # AST_declaracion_clase
   '''
   p[0] = p[1]
 
-def p_declaracion_de_clase(p): # AST_declaracion_clase
+def p_declaracion_con_class(p): # AST_declaracion_clase | AST_identificador
   '''
-  declaracion_de_clase : DECL_CLASS s id_clase opt_modificador_clase cuerpo_clase
+  declaracion_de_clase : DECL_CLASS s continuacion_class
   '''
-  s = AST_sintaxis(p[1])            # AST_sintaxis
-  s = concatenar(s, p[2])           # [AST_sintaxis]
-  nombre = p[3]                     # AST_tipo
-  post_mod = p[4]                   # AST_modificador_declaracion | [AST_skippeable]
-  definicion = p[5]                 # AST_cuerpo
-  nombre.apertura(s)
+  resultado = None
+  c = p[3]                            # AST_TMP ( clase | decorador )
+  if c.identificador == 'clase':
+    s = AST_sintaxis(p[1])            # AST_sintaxis
+    s = concatenar(s, p[2])           # [AST_skippeable]
+    clase = c.contenido
+    clase.apertura(s)
+    resultado = clase
+  elif c.identificador == 'decorador':
+    identificador = AST_identificador(p[1]) # AST_identificador
+    s = p[2]                                # [AST_skippeable]
+    decorador = c.contenido
+    identificador.apertura(s)
+    identificador = aplicarModificador(identificador, decorador)
+    resultado = identificador
+  else:
+    fallaDebug()
+  p[0] = resultado
+
+def p_continuacion_class_definicion_clase(p): # AST_TMP ( clase )
+  '''
+  continuacion_class : id_clase opt_modificador_clase cuerpo_clase
+  '''
+  nombre = p[1]                     # AST_tipo
+  post_mod = p[2]                   # AST_modificador_declaracion | [AST_skippeable]
+  definicion = p[3]                 # AST_cuerpo
   nombre.agregar_modificador_post(post_mod)
-  p[0] = AST_declaracion_clase(nombre, definicion)
+  clase = AST_declaracion_clase(nombre, definicion)
+  p[0] = AST_TMP('clase', clase)
+
+def p_continuacion_class_definicion_campo(p): # AST_TMP ( decorador )
+  '''
+  continuacion_class : decorador_tipo
+                     | decorador_opcional
+  '''
+  decorador = p[1]
+  p[0] = AST_TMP('decorador', decorador)
 
 def p_cuerpo_clase(p): # AST_cuerpo
   '''
