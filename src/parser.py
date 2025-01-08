@@ -4395,7 +4395,7 @@ class AST_tipo_suma(AST_tipo):
     else:
       self.clausura(c)
   def __str__(self):
-    return f"Tipo : {' | '.join(list(self.sub_tipos.map(show)))}"
+    return f"Tipo : {' | '.join(list(map(show, self.sub_tipos)))}"
   def restore(self):
     return super().restore(f"{restore(self.sub_tipos)}")
 
@@ -4413,7 +4413,7 @@ class AST_tipo_tupla(AST_tipo):
     else:
       self.clausura(c)
   def __str__(self):
-    return f"Tipo : <{', '.join(list(self.sub_tipos.map(show)))}>"
+    return f"Tipo : <{', '.join(list(map(show, self.sub_tipos)))}>"
   def restore(self):
     return super().restore(f"{restore(self.sub_tipos)}")
 
@@ -4423,7 +4423,7 @@ class AST_tipo_compuesto(AST_tipo):
     self.base = base                    # AST_tipo_base
     self.sub_tipos = sub_tipos          # AST_tupla
   def __str__(self):
-    return f"Tipo : {self.base}<{', '.join(list(self.sub_tipos.sub_tipos.map(show)))}>"
+    return f"Tipo : {self.base}<{', '.join(list(map(show, self.sub_tipos.sub_tipos)))}>"
   def restore(self):
     return super().restore(f"{restore(self.base)}{restore(self.sub_tipos)}")
 
@@ -4441,7 +4441,7 @@ class AST_tipo_varios(AST_tipo):
     else:
       self.clausura(c)
   def __str__(self):
-    return f"Tipo : {' , '.join(list(self.sub_tipos.map(show)))}"
+    return f"Tipo : {' , '.join(list(map(show, self.sub_tipos)))}"
   def restore(self):
     return super().restore(f"{restore(self.sub_tipos)}")
 
@@ -4514,7 +4514,7 @@ class AST_programa(AST_nodo):
     super().__init__()
     self.declaraciones = sanitizar(declaraciones)   # [AST_nodo]
   def __str__(self):
-    return show(self.declaraciones)
+    return '\n'.join(list(map(show, self.declaraciones)))
   def restore(self):
     return super().restore(f"{''.join(map(restore, self.declaraciones))}")
 

@@ -326,6 +326,7 @@ def parsearArchivo(nombreArchivo, verb=True):
       print(nombreArchivo)
     print("Falló la restauración")
     mostrarDiff(contenido, z)
+  return ast
 
 if __name__ == '__main__':
   main()
