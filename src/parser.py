@@ -60,6 +60,7 @@ tokens = (
   'VOID',
   'SKIP',
   'TYPE',
+  'CATCH',
   'CORTE_CICLO'
 )
 
@@ -81,7 +82,8 @@ reserved_map = {
   'void':'VOID',
   'in':'IN',
   'of':'OF',
-  'type':'TYPE'
+  'type':'TYPE',
+  'catch':'CATCH'
 }
 
 for k in ['let','const','var']:
@@ -90,7 +92,7 @@ for k in ['let','const','var']:
 for k in ['class','interface','namespace']:
   reserved_map[k] = 'DECL_CLASS'
 
-for k in ['if','for','while','switch','catch']:
+for k in ['if','for','while','switch']:
   reserved_map[k] = 'COMBINADOR1'
 
 for k in ['try','finally','do']:
@@ -724,6 +726,7 @@ def p_nombre(p): # string
   '''
   nombre : TYPE
          | DECL_CLASS
+         | CATCH
          | nombre_no_type
   '''
   p[0] = p[1]
@@ -752,7 +755,7 @@ def p_objeto_tipo(p): # AST_tipo_objeto
   opt_adicional = p[4]      # AST_tipo_lista | AST_tipo_suma | AST_tipo_tupla | AST_modificador_objeto_acceso | [AST_skippeable]
   tipo = AST_tipo_objeto(campos)
   tipo.apertura(s)
-  tipo.modificador_adicional(opt_adicional)
+  tipo = aplicarModificador(tipo, opt_adicional)
   p[0] = tipo
 
 def p_tipo_lista(p): # AST_tipo_varios
@@ -2270,6 +2273,7 @@ def p_opt_cuerpo_cuerpo(p): # AST_cuerpo
 def p_selector_combinador_simple_1(p): # AST_combinador
   '''
   selector_combinador : COMBINADOR1 s ABRE_PAREN programa CIERRA_PAREN s
+                      | CATCH s ABRE_PAREN programa CIERRA_PAREN s
   '''
   clase = p[1]                  # string
   s1 = concatenar(clase, p[2])
@@ -3190,7 +3194,7 @@ def p_modificador_expresion_asignada_acceso(p): # AST_modificador_objeto | AST_t
                                  | indexacion
                                  | invocacion
                                  | operador
-                                 | comotipo
+                                 | comotipo opt_modificador_expresion_asignada
                                  | flecha
   '''
   modificador = p[1]
