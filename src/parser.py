@@ -58,7 +58,8 @@ tokens = (
   'CASE',
   'TYPEOF',
   'VOID',
-  'SKIP',
+  'ESPACIO',
+  'SALTO',
   'TYPE',
   'CATCH',
   'CORTE_CICLO'
@@ -145,15 +146,16 @@ t_PUNTO_Y_COMA = r';'
 t_ACCESO1 = r'\.'
 t_ACCESO2 = r'\?\.|\!\.'
 t_COMA = r','
+t_ESPACIO = r'(\ |\t)+'
 def t_FORMAT_STRING_COMPLETE(t):
   r'(`[^`]*`)'
   t.type = "FORMAT_STRING_COMPLETE"
   t.lexer.lineno += t.value.count('\n')
   return t
 
-def t_SKIP(t):
-  r'(\ |\t|\n)+'
-  t.type = "SKIP"
+def t_SALTO(t):
+  r'\n'
+  t.type = "SALTO"
   t.lexer.lineno += t.value.count('\n')
   return t
 
@@ -165,7 +167,7 @@ def t_error(t):
 precedence = (
   ('left', 'VACIO'),
   ('left', 'ESPACIOS'),
-  ('left', 'COMENTARIO_ML', 'COMENTARIO_UL', 'SKIP'),
+  ('left', 'COMENTARIO_ML', 'COMENTARIO_UL', 'ESPACIO', 'SALTO'),
   ('left', 'TYPE'),
   ('left', 'IDENTIFICADOR'),
   ('left', 'MENOR','MAYOR'),
@@ -270,13 +272,13 @@ def p_programa_util_vacio(p): # [AST_nodo]
   '''
   p[0] = []
 
-def p_programa_util_no_vacio(p): # [AST_nodo]
+def p_programa_util_no_vacio(p): # [AST_declaracion]
   '''
   programa_util : declaracion opt_cierre programa_util
   '''
   declaracion = p[1]  # AST_declaracion
   s = p[2]            # [AST_skippeable]
-  rec = p[3]          # [AST_nodo]
+  rec = p[3]          # [AST_declaracion]
   declaracion.clausura(s)
   p[0] = concatenar(declaracion, rec)
 
@@ -285,13 +287,19 @@ def p_programa_util_no_vacio(p): # [AST_nodo]
     SF -> skip S       {skip}         : AST_espacios
     SF -> comentario S {comentario}   : AST_comentario
 ''' #################################################################################################
-def p_sf_espacios(p):
+def p_sf_espacios(p): # [AST_skippeable]
   '''
-  sf : SKIP s
+  sf : ESPACIO s
   '''
   p[0] = concatenar(AST_espacios(p[1]), p[2])
 
-def p_sf_comentario(p):
+def p_sf_salto(p): # [AST_skippeable]
+  '''
+  sf : SALTO s
+  '''
+  p[0] = concatenar(AST_salto(p[1]), p[2])
+
+def p_sf_comentario(p): # [AST_skippeable]
   '''
   sf : COMENTARIO_UL s
      | COMENTARIO_ML s
@@ -303,13 +311,13 @@ def p_sf_comentario(p):
     S -> lambda   vacío                           {lambda}
     S -> SF       o tener al menos un skippeable  {skip, comentario}
 ''' #################################################################################################
-def p_skippeable_vacio(p):
+def p_skippeable_vacio(p): # [AST_nodo]
   '''
   s : vacio
   '''
   p[0] = []
 
-def p_skippeable_no_vacio(p):
+def p_skippeable_no_vacio(p): # [AST_skippeable]
   '''
   s : sf %prec ESPACIOS
   '''
@@ -339,7 +347,7 @@ def p_skippeable_no_vacio(p):
 # Primero tengo que dividir entre objeto y no objeto porque si viene una llave después de la condición
   # de if no sé si es el cuerpo del if o un objeto.
 
-def p_declaracion_no_objeto(p):
+def p_declaracion_no_objeto(p): # AST_declaracion
   '''
   declaracion : declaracion_no_objeto
   '''
@@ -3701,6 +3709,15 @@ class AST_espacios(AST_skippeable):
   def restore(self):
     return super().restore(f"{self.espacios}")
 
+class AST_salto(AST_skippeable):
+  def __init__(self, espacios):
+    super().__init__()
+    self.espacios = espacios
+  def __str__(self):
+    return show(self.espacios)
+  def restore(self):
+    return super().restore(f"{self.espacios}")
+
 class AST_comentario(AST_skippeable):
   def __init__(self, contenido):
     super().__init__()
@@ -4517,6 +4534,8 @@ class AST_programa(AST_nodo):
     return '\n'.join(list(map(show, self.declaraciones)))
   def restore(self):
     return super().restore(f"{''.join(map(restore, self.declaraciones))}")
+  def toJs(self):
+    return super().restore(f"{''.join(map(toJs, self.declaraciones))}")
 
 class AST_TMP(AST_nodo):
   def __init__(self, identificador, contenido, rec=None):
