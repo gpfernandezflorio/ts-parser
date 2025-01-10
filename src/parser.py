@@ -970,12 +970,11 @@ def p_mas_campos_tipo_fin(p): # AST_campos_tipo
 
 def p_mas_campos_tipo(p): # AST_campos_tipo
   '''
-  mas_campos_tipo : PUNTO_Y_COMA s campos_tipo
+  mas_campos_tipo : separador campos_tipo
   '''
-  coma = AST_sintaxis(p[1])
-  s = concatenar(coma, p[2])  # [AST_skippeable]
-  campos = p[3]               # AST_campos_tipo
-  campos.apertura(s)
+  separador = p[1]            # [AST_skippeable]
+  campos = p[2]               # AST_campos_tipo
+  campos.apertura(separador)
   p[0] = campos
 
 def p_fin_campos_tipo(p): # AST_campos_tipo
@@ -3040,6 +3039,13 @@ def p_salto(p): # [AST_skippeable]
   cierre = p[2]                       # [AST_skippeable]
   p[0] = concatenar(salto, cierre)
 
+def p_separador(p): # [AST_skippeable]
+  '''
+  separador : cierre
+            | salto
+  '''
+  p[0] = p[1]
+
 def p_espacios(p): # [AST_skippeable]
   '''
   espacios : ESPACIO s
@@ -3050,27 +3056,19 @@ def p_espacios(p): # [AST_skippeable]
 
 def p_opt_cierre_con_skip(p): # [AST_skippeable]
   '''
-  opt_cierre :  espacios opt_punto_y_coma
+  opt_cierre :  espacios opt_cierre
   '''
   p[0] = concatenar(p[1], p[2])
 
 def p_opt_cierre_sin_skip(p): # [AST_skippeable]
   '''
-  opt_cierre : cierre
-             | salto
+  opt_cierre : separador
   '''
   p[0] = p[1]
 
 def p_opt_cierre_nada(p): # [AST_skippeable]
   '''
   opt_cierre : vacio
-  '''
-  p[0] = p[1]
-
-def p_opt_punto_y_coma(p): # [AST_skippeable]
-  '''
-  opt_punto_y_coma : cierre
-                   | vacio
   '''
   p[0] = p[1]
 
