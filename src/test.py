@@ -435,27 +435,25 @@ casos_de_test = [
     invocacion(invocacion(invocacion(invocacion('a'))))
   ]),
   Test("Objetos literales",
-    "a={}{x:2,b:function(){}}",[
+    "a={   x:2,b:function(){}}",[
     id('a',1,1,0),
     t('ASIGNACION1','=',1,2,1),
     t('ABRE_LLAVE','{',1,3,2),
-    t('CIERRA_LLAVE','}',1,4,3),
-    t('ABRE_LLAVE','{',1,5,4),
-    id('x',1,6,5),
-    t('DOS_PUNTOS',':',1,7,6),
-    n('2',1,8,7),
-    t('COMA',',',1,9,8),
-    id('b',1,10,9),
-    t('DOS_PUNTOS',':',1,11,10),
-    t('DECL_FUNC','function',1,12,11),
-    t('ABRE_PAREN','(',1,20,19),
-    t('CIERRA_PAREN',')',1,21,20),
-    t('ABRE_LLAVE','{',1,22,21),
-    t('CIERRA_LLAVE','}',1,23,22),
-    t('CIERRA_LLAVE','}',1,24,23)
+    t('ESPACIO','   ',1,4,3),
+    id('x',1,7,6),
+    t('DOS_PUNTOS',':',1,8,7),
+    n('2',1,9,8),
+    t('COMA',',',1,10,9),
+    id('b',1,11,10),
+    t('DOS_PUNTOS',':',1,12,11),
+    t('DECL_FUNC','function',1,13,12),
+    t('ABRE_PAREN','(',1,21,20),
+    t('CIERRA_PAREN',')',1,22,21),
+    t('ABRE_LLAVE','{',1,23,22),
+    t('CIERRA_LLAVE','}',1,24,23),
+    t('CIERRA_LLAVE','}',1,25,24)
   ],[
-    asignacion('a',objeto({})),
-    objeto({"x":2,"b":abs([],[])})
+    asignacion('a',objeto({"x":2,"b":abs([],[])}))
   ]),
   Test("Operadores",
     "2+3+4;!b*(2>=c)",[

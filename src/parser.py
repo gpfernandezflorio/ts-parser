@@ -331,7 +331,7 @@ def p_skippeable_no_vacio(p): # [AST_skippeable]
     D -> num            D_NUMERO      AST_expresion_literal
     D -> string         D_STRING      AST_expresion_literal
     D -> `...`          D_STRING      AST_format_string
-    D -> {...}          D_OBJETO      AST_expresion_objeto
+    D -> {...}          D_OBJETO      AST_tipo_objeto (ojo: no es un objeto literal, los campos se separan con ; en lugar de con ,)
     D -> (...)          D_PARENT      AST_expresion
     D -> if|for|while   D_COMMAND     AST_combinador
     D -> case           D_COMMAND     AST_combinador
@@ -1998,17 +1998,16 @@ def p_fin_argumentos_no_tipados(p): # AST_argumentos
 
 # DECLARACIÓN : OBJETO (no es asignable pero se vuelve asignable al accederlo o indexarlo)
  #################################################################################################
-def p_declaracion_objeto(p): # AST_expresion_objeto
+def p_declaracion_objeto(p): # AST_tipo_objeto
   '''
-  declaracion : ABRE_LLAVE s campos opt_modificador_objeto_comando
+  declaracion : ABRE_LLAVE s campos_tipo
   '''
   abre = AST_sintaxis(p[1])
   s = concatenar(abre, p[2])              # [AST_skippeable]
-  campos = p[3]                           # AST_campos
-  modificador = p[4]                      # [AST_skippeable] | AST_modificador_objeto | AST_argumentos
-  objeto = AST_expresion_objeto(campos)
+  campos = p[3]                           # AST_campos_tipo
+  objeto = AST_tipo_objeto(campos)
   objeto.apertura(s)
-  p[0] = aplicarModificador(objeto, modificador)
+  p[0] = objeto
 
 def p_objeto_literal(p): # AST_expresion_objeto
   '''
@@ -3219,25 +3218,6 @@ def p_modificador_expresion_asignada_acceso(p): # AST_modificador_objeto | AST_t
                                  | operador
                                  | comotipo opt_modificador_expresion_asignada
                                  | flecha
-  '''
-  modificador = p[1]
-  if len(p) > 2:
-    opt_adicional = p[2]      # AST_modificador | [AST_skippeable]
-    modificador.modificador_adicional(opt_adicional)
-  p[0] = modificador
-
-def p_opt_modificador_objeto_comando(p): # ... | [AST_skippeable]
-  '''
-  opt_modificador_objeto_comando : modificador_objeto_comando
-                                 | sf opt_modificador_objeto_comando
-                                 | vacio
-  '''
-  p[0] = modificador_opcional(p)
-def p_modificador_objeto_comando(p): # AST_modificador_objeto_acceso | AST_modificador_objeto_index | AST_tipo_lista | AST_argumentos
-  '''
-  modificador_objeto_comando : acceso opt_modificador_asignable
-                             | indexacion
-                             | invocacion
   '''
   modificador = p[1]
   if len(p) > 2:
