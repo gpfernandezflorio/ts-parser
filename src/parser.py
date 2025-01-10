@@ -289,15 +289,15 @@ def p_programa_util_no_vacio(p): # [AST_declaracion]
 ''' #################################################################################################
 def p_sf_espacios(p): # [AST_skippeable]
   '''
-  sf : ESPACIO s
+  sf : espacios
   '''
-  p[0] = concatenar(AST_espacios(p[1]), p[2])
+  p[0] = p[1]
 
 def p_sf_salto(p): # [AST_skippeable]
   '''
-  sf : SALTO s
+  sf : salto
   '''
-  p[0] = concatenar(AST_salto(p[1]), p[2])
+  p[0] = p[1]
 
 def p_sf_comentario(p): # [AST_skippeable]
   '''
@@ -3032,15 +3032,32 @@ def p_cierre(p): # [AST_skippeable]
   cierre = p[2]                       # [AST_skippeable]
   p[0] = concatenar(punto_y_coma, cierre)
 
+def p_salto(p): # [AST_skippeable]
+  '''
+  salto : SALTO s
+  '''
+  salto = AST_salto(p[1])
+  cierre = p[2]                       # [AST_skippeable]
+  p[0] = concatenar(salto, cierre)
+
+def p_espacios(p): # [AST_skippeable]
+  '''
+  espacios : ESPACIO s
+  '''
+  espacios = AST_espacios(p[1])
+  cierre = p[2]                       # [AST_skippeable]
+  p[0] = concatenar(espacios, cierre)
+
 def p_opt_cierre_con_skip(p): # [AST_skippeable]
   '''
-  opt_cierre : sf opt_punto_y_coma
+  opt_cierre :  espacios opt_punto_y_coma
   '''
   p[0] = concatenar(p[1], p[2])
 
 def p_opt_cierre_sin_skip(p): # [AST_skippeable]
   '''
   opt_cierre : cierre
+             | salto
   '''
   p[0] = p[1]
 
