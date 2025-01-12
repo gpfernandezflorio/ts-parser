@@ -3778,8 +3778,10 @@ def p_decorador_default(p): # AST_decorador_default
   '''
   decorador_default : asignacion
   '''
-  asignacion = p[1]         # AST_modificador_asignacion
-  p[0] = AST_decorador_default(asignacion)
+  asignacion = p[1]                 # AST_modificador_asignacion
+  expresion = asignacion.expresion
+  expresion.imitarEspacios(asignacion)
+  p[0] = AST_decorador_default(expresion)
 
 def modificador_opcional(p):
   resultado = p[1]
@@ -4306,7 +4308,7 @@ class AST_import(AST_declaracion):
     self.archivo = archivo          # AST_expresion_literal
     self.importables = importables  # AST_identificador | AST_identificadores | AST_sintaxis | None
     self.opt_alias = opt_alias      # AST_identificador | [AST_skippeable]
-    self.es_tipo = es_tipo
+    self.es_tipo = es_tipo          # Bool
   def __str__(self):
     return f"Import {show(self.archivo)}"
   def restore(self):
@@ -4382,7 +4384,7 @@ class AST_decorador_opcional(AST_decorador):
 class AST_decorador_default(AST_decorador):
   def __init__(self, default):
     super().__init__()
-    self.default = default      # AST_asignacion
+    self.default = default      # AST_expresion
   def restore(self):
     return super().restore(f"{restore(self.default)}")
 
@@ -4642,7 +4644,7 @@ class AST_tipo_void(AST_tipo):
 class AST_campos_tipo(AST_declaracion):
   def __init__(self):
     super().__init__()
-    self.lista = []  # [AST_campo_tipo]
+    self.lista = []            # [AST_campo_tipo]
   def agregar_campo(self, campo):
     self.lista.insert(0, campo)
   def cantidad(self):
@@ -4695,8 +4697,6 @@ class AST_programa(AST_nodo):
     return '\n'.join(list(map(show, self.declaraciones)))
   def restore(self):
     return super().restore(f"{''.join(map(restore, self.declaraciones))}")
-  def toJs(self):
-    return super().restore(f"{''.join(map(toJs, self.declaraciones))}")
 
 class AST_TMP(AST_nodo):
   def __init__(self, identificador, contenido, rec=None):
