@@ -1210,7 +1210,8 @@ def p_expresion_asignada_con_pre(p): # AST_expresion
   expresion_asignada : operador_prefijo s expresion_asignada
   '''
   operador = p[1]                 # string
-  s = concatenar(operador, p[2])  # [AST_skippeable]
+  s = AST_sintaxis(operador)      # AST_sintaxis
+  s = concatenar(s, p[2])         # [AST_skippeable]
   expresion = p[3]                # AST_expresion
   if isinstance(expresion, AST_operador) and expresion.esBinario() and not expresion.tieneParentesis():
     expresion.izq = AST_operador(None, operador, expresion.izq)
@@ -1384,7 +1385,8 @@ def p_expresion_o_parametros_con_prefijo(p): # AST_expresion
   expresion_o_parametros : operador_prefijo s expresion_no_obj
   '''
   operador = p[1]                 # string
-  s = concatenar(operador, p[2])  # [AST_skippeable]
+  s = AST_sintaxis(operador)      # AST_sintaxis
+  s = concatenar(s, p[2])         # [AST_skippeable]
   expresion = p[3]                # AST_expresion
   if isinstance(expresion, AST_operador) and expresion.esBinario() and not expresion.tieneParentesis():
     expresion.izq = AST_operador(None, operador, expresion.izq)
@@ -1606,7 +1608,8 @@ def p_expresion_con_pre(p): # AST_expresion
   expresion_no_obj : operador_prefijo s expresion_no_obj
   '''
   operador = p[1]                 # string
-  s = concatenar(operador, p[2])  # [AST_skippeable]
+  s = AST_sintaxis(operador)      # AST_sintaxis
+  s = concatenar(s, p[2])         # [AST_skippeable]
   expresion = p[3]                # AST_expresion
   if isinstance(expresion, AST_operador) and expresion.esBinario() and not expresion.tieneParentesis():
     expresion.izq = AST_operador(None, operador, expresion.izq)
@@ -1794,7 +1797,8 @@ def p_expresion_no_tipada_con_pre(p):
   expresion_no_tipada : operador_prefijo s expresion_no_tipada
   '''
   operador = p[1]                 # string
-  s = concatenar(operador, p[2])  # [AST_skippeable]
+  s = AST_sintaxis(operador)      # AST_sintaxis
+  s = concatenar(s, p[2])         # [AST_skippeable]
   expresion = p[3]                # AST_expresion
   if isinstance(expresion, AST_operador) and expresion.esBinario() and not expresion.tieneParentesis():
     expresion.izq = AST_operador(None, operador, expresion.izq)
@@ -1823,9 +1827,10 @@ def p_operador_no_tipado_operador_binario(p): # AST_modificador_operador_binario
   '''
   operador_no_tipado : operador_binario s expresion_no_tipada
   '''
-  clase = p[1]
-  s = concatenar(clase, p[2])
-  expresion = p[3]
+  clase = p[1]                # string
+  s = AST_sintaxis(clase)     # AST_sintaxis
+  s = concatenar(s, p[2])     # AST_skippeable
+  expresion = p[3]            # AST_expresion
   expresion.apertura(s)
   if isinstance(expresion, AST_operador) and expresion.esBinario() and not expresion.tieneParentesis():
     modificador = AST_modificador_operador_binario(clase, expresion.izq)
@@ -1862,9 +1867,10 @@ def p_operador_operador_binario(p): # AST_modificador_operador_binario
   '''
   operador : operador_binario s expresion
   '''
-  clase = p[1]
-  s = concatenar(clase, p[2])
-  expresion = p[3]
+  clase = p[1]                # string
+  s = AST_sintaxis(clase)     # AST_sintaxis
+  s = concatenar(s, p[2])     # AST_skippeable
+  expresion = p[3]            # AST_expresion
   expresion.apertura(s)
   if isinstance(expresion, AST_operador) and expresion.esBinario() and not expresion.tieneParentesis():
     modificador = AST_modificador_operador_binario(clase, expresion.izq)
@@ -2311,10 +2317,11 @@ def p_selector_combinador_simple_1(p): # AST_combinador
   '''
   selector_combinador : COMBINADOR1 s ABRE_PAREN programa CIERRA_PAREN s
   '''
-  clase = p[1]                  # string
-  s1 = concatenar(clase, p[2])
-  s1 = concatenar(s1, p[3])
-  expresion = p[4]              # [AST_nodo]
+  clase = p[1]                                # string
+  s1 = AST_sintaxis(clase)                    # AST_sintaxis
+  s1 = concatenar(s1, p[2])                   # AST_skippeable
+  s1 = concatenar(s1, AST_sintaxis(p[3]))     # AST_skippeable
+  expresion = p[4]                            # [AST_nodo]
   s2 = AST_sintaxis(p[5])
   s2 = concatenar(s2, p[6])
   if len(expresion) > 0:
@@ -2329,7 +2336,8 @@ def p_selector_combinador_simple_2(p): # AST_combinador
   selector_combinador : COMBINADOR2 s
   '''
   clase = p[1]                  # string
-  s = concatenar(clase, p[2])   # [AST_skippeable]
+  s = AST_sintaxis(clase)       # AST_sintaxis
+  s = concatenar(s, p[2])       # [AST_skippeable]
   combinador = AST_combinador(clase)
   combinador.apertura(s)
   p[0] = combinador
@@ -2339,7 +2347,8 @@ def p_selector_combinador_simple_3(p): # AST_combinador
   selector_combinador : CATCH s opt_guarda
   '''
   clase = p[1]                  # string
-  s = concatenar(clase, p[2])   # [AST_skippeable]
+  s = AST_sintaxis(clase)       # AST_sintaxis
+  s = concatenar(s, p[2])       # [AST_skippeable]
   expresion = p[3]              # [AST_nodo]
   combinador = AST_combinador(clase, expresion)
   combinador.apertura(s)
@@ -2371,11 +2380,12 @@ def p_selector_combinador_else(p): # AST_combinador
   selector_combinador : ELSE opt_if
   '''
   clase = p[1]                  # string
+  s = AST_sintaxis(clase)       # AST_sintaxis
   combinador = p[2]             # AST_combinador | [AST_skippeable]
   if not (isinstance(combinador, AST_combinador)):
     combinador = AST_combinador(clase)
     combinador.clausura(p[2])
-  combinador.apertura(clase)
+  combinador.apertura(s)
   p[0] = combinador
 
 def p_opt_if(p): # AST_combinador | [AST_skippeable]
@@ -2427,7 +2437,8 @@ def p_declaracion_prefijo(p): # AST_operador
   declaracion_no_objeto : operador_prefijo s expresion_como_comando
   '''
   operador = p[1]                 # string
-  s = concatenar(operador, p[2])  # [AST_skippeable]
+  s = AST_sintaxis(operador)      # AST_sintaxis
+  s = concatenar(s, p[2])         # [AST_skippeable]
   expresion = p[3]                # AST_expresion
   if isinstance(expresion, AST_operador) and expresion.esBinario() and not expresion.tieneParentesis():
     expresion.izq = AST_operador(None, operador, expresion.izq)
@@ -2703,8 +2714,9 @@ def p_continuacion_type_en_declaracion_sigue_operador_binario(p): # AST_TMP ( op
   '''
   continuacion_type_en_declaracion : operador_binario_no_menor s expresion
   '''
-  clase = p[1]
-  s = concatenar(clase, p[2])
+  clase = p[1]                # string
+  s = AST_sintaxis(clase)     # AST_sintaxis
+  s = concatenar(s, p[2])     # [AST_skippeable]
   expresion = p[3]
   expresion.apertura(s)
   if isinstance(expresion, AST_operador) and expresion.esBinario() and not expresion.tieneParentesis():
@@ -4690,7 +4702,7 @@ def aplicarModificador(nodo, mod):
     resultado = AST_operador(nodo, "?:", mod.expresion1, mod.expresion2)
   elif isinstance(mod, AST_modificador_operador_posfijo):
     # OPERACIÓN: {nodo} {mod}
-    nodo.clausura(mod.restore())
+    nodo.clausura(AST_sintaxis(mod.restore()))
     resultado = AST_operador(nodo, mod.clase, None)
   elif isinstance(mod, AST_argumentos):
     # INVOCACIÓN: {nodo} ( {mod} )
