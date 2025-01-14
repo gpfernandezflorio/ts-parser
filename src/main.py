@@ -30,9 +30,7 @@ def parsearArchivo(nombreArchivo, verb=True):
   # mostrarTokens(tokens)
   ast = parsear(contenido)
   # mostrarAST(ast)
-  z = ""
-  for a in ast.declaraciones:
-    z += a.restore()
+  z = ast.restore()
   if eq_string(contenido, z):
     if verb:
       print("Restauración exitosa")
